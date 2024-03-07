@@ -1,0 +1,31 @@
+{
+    "[c]": {
+        "editor.defaultFormatter": "xaver.clang-format",
+    },
+    "[cpp]": {
+        "editor.defaultFormatter": "xaver.clang-format",
+    },
+    "[zig]": {
+        "editor.defaultFormatter": "ziglang.vscode-zig",
+    },
+    "C_Cpp.default.cStandard": "c17",
+    "files.associations": {
+        "*.h": "c",
+        "*.c": "c",
+        "any": "c",
+        "array": "c",
+        "charconv": "c",
+        "compare": "c",
+        "functional": "c",
+        "ratio": "c",
+        "tuple": "c",
+        "type_traits": "c",
+        "utility": "c",
+        "variant": "c",
+        "cstdint": "c",
+        "format": "c",
+        "cstdlib": "c",
+        "*.inc": "c",
+        "cassert": "c"
+    }
+}

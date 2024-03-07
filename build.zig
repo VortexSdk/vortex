@@ -1,69 +1,59 @@
 const std = @import("std");
 
-pub fn add_tests(
+var target: std.Build.ResolvedTarget = undefined;
+var optimize: std.builtin.OptimizeMode = undefined;
+
+const DEFAULT_CLANG_OPTIONS: [6][]const u8 = [6][]const u8{
+    "-std=c17",
+    "-Weverything",
+    "-Wno-unused-function",
+    "-Wno-unsafe-buffer-usage",
+    "-Wno-missing-prototypes",
+    "-Wno-reserved-identifier",
+};
+
+fn add_ctest(
     b: *std.Build,
-    target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-    vortex: *std.Build.Module,
-    tests_step: *std.Build.Step,
-    comptime tests: anytype,
-    comptime exe_tests: anytype,
+    test_step: *std.Build.Step,
+    comptime subdir: []const u8,
+    comptime names_len: comptime_int,
+    comptime names: [names_len][]const u8,
 ) void {
-    inline for (tests) |name| {
-        const new_tests = b.addTest(.{
+    inline for (names) |name| {
+        const test_exe = b.addExecutable(.{
             .target = target,
             .optimize = optimize,
-            .name = std.fmt.comptimePrint("{s}_tests", .{name}),
-            .root_source_file = .{ .path = std.fmt.comptimePrint("tests/{s}.zig", .{name}) },
+            .name = std.fmt.comptimePrint("{s}_test", .{name}),
         });
-        new_tests.root_module.addImport("vortex", vortex);
-        tests_step.dependOn(&b.addRunArtifact(new_tests).step);
-        tests_step.dependOn(&b.addInstallArtifact(new_tests, .{}).step);
-    }
-    inline for (exe_tests) |name| {
-        const new_tests = b.addExecutable(.{
-            .target = target,
-            .optimize = optimize,
-            .name = std.fmt.comptimePrint("{s}_tests", .{name}),
-            .root_source_file = .{ .path = std.fmt.comptimePrint("tests/{s}.zig", .{name}) },
+        test_exe.addIncludePath(.{
+            .path = std.fmt.comptimePrint("{s}/include", .{subdir}),
         });
-        new_tests.root_module.addImport("vortex", vortex);
-        tests_step.dependOn(&b.addRunArtifact(new_tests).step);
-        tests_step.dependOn(&b.addInstallArtifact(new_tests, .{}).step);
+        test_exe.addCSourceFile(.{
+            .flags = switch (optimize) {
+                .Debug => &DEFAULT_CLANG_OPTIONS,
+                .ReleaseSafe => &(DEFAULT_CLANG_OPTIONS ++ [_][]const u8{"-O3"}),
+                .ReleaseSmall => &(DEFAULT_CLANG_OPTIONS ++ [_][]const u8{"-Oz"}),
+                .ReleaseFast => &(DEFAULT_CLANG_OPTIONS ++ [_][]const u8{"-Ofast"}),
+            },
+            .file = .{
+                .path = std.fmt.comptimePrint("{s}/tests/{s}.c", .{ subdir, name }),
+            },
+        });
+        test_step.dependOn(&b.addInstallArtifact(test_exe, .{}).step);
+        test_step.dependOn(&b.addRunArtifact(test_exe).step);
     }
 }
 
 pub fn build(b: *std.Build) !void {
-    const target = b.standardTargetOptions(.{ .default_target = .{ .ofmt = .c } });
-    const optimize = b.standardOptimizeOption(.{});
+    target = b.standardTargetOptions(.{});
+    optimize = b.standardOptimizeOption(.{});
 
-    const vortex = b.createModule(.{
-        .root_source_file = .{ .path = "src/root.zig" },
-    });
-    try b.modules.put(b.dupe("vortex"), vortex);
-
-    const lib = b.addStaticLibrary(.{ .root_source_file = .{ .path = "src/root.zig" }, .name = "vortex", .target = target, .optimize = optimize });
-
-    _ = b.addInstallArtifact(lib, .{});
-
-    const install_header = b.addInstallFileWithDir(lib.getEmittedBin(), .lib, "vortex/vortex.c");
-    b.getInstallStep().dependOn(&install_header.step);
-
-    const tests_step = b.step("test", "Runs all the tests");
-    add_tests(
+    const tests_step = b.step("test", "Runs all tests");
+    add_ctest(
         b,
-        target,
-        optimize,
-        vortex,
         tests_step,
-        .{ "mem", "math" },
-        .{
-            "start0-u8",
-            "start0-void",
-            "start1-u8",
-            "start1-void",
-            "start2-u8",
-            "start2-void",
-        },
+        "vortex",
+        1,
+        [_][]const u8{"mem"},
     );
 }

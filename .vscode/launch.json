@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "args": [],
+            "type": "lldb",
+            "request": "launch",
+            "name": "Vortex mem_test",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/zig-out/bin/mem_test",
+        }
+    ]
+}
