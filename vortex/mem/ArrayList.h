@@ -8,7 +8,7 @@
     #define DEFAULT_ARRAYLIST_CAPACITY (1 * 1024)
 #endif
 
-typedef struct ArrayList {
+typedef struct {
     void *mem;
     usize cap;
     usize pos;

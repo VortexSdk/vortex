@@ -9,7 +9,7 @@ typedef void *(*AllocatorReallocFn)(void *ctx, void *buf, usize len, usize new_l
 
 /// This is an allocator interface which relies on storing data with 8-byte
 /// alignment. That means types that aren't aligned are stored with padding.
-typedef struct Allocator {
+typedef struct {
     void *ptr;
     /// buf: ptr and len: non-zero and new_len: zero => free.
     /// buf: null and len: non-zero and new_len: zero => alloc.

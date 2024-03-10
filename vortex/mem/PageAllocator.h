@@ -5,7 +5,7 @@
 #include <linux/mman.h>
 #include <sys/sys.h>
 
-typedef struct PageAllocator {
+typedef struct {
     void *mem;
     usize len;
 } PageAllocator;

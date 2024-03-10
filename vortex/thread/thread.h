@@ -5,12 +5,12 @@
 #include <vortex/mem/utils.h>
 #include <vortex/numbers.h>
 
-typedef struct __attribute((aligned(16))) thread_stack {
-    void (*entry)(struct thread_stack *stack_data);
+typedef struct __attribute((aligned(16))) {
+    void (*entry)(struct ThreadStack *stack_data);
     usize join_futex;
-} thread_stack;
+} ThreadStack;
 
-void thread_entry(thread_stack *stack_data) {
+void thread_entry(ThreadStack *stack_data) {
     SYSCALL(SYS_write, 3, 0, (usize) "Hello World!\n", 14);
     SYSCALL(SYS_exit, 1, 0);
 }

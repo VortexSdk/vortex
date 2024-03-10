@@ -2,7 +2,7 @@
 
 #include "../numbers.h"
 
-typedef struct Slice {
+typedef struct {
     void *ptr;
     usize len;
 } Slice;

@@ -4,7 +4,7 @@
 #include "Allocator.h"
 #include "utils.h"
 
-typedef struct ArenaAllocator {
+typedef struct {
     void *mem;
     usize len;
     usize pos;
