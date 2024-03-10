@@ -30,7 +30,7 @@ void test_arena(void) {
 __attribute__((noreturn)) extern void _start(void) {
     test_arena();
 
-    SYSCALL(SYS_exit_group, 1, 0);
+    syscall(SYS_exit_group, 1, 0);
 
     __builtin_unreachable();
 }

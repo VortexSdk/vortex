@@ -8,7 +8,7 @@ void test_ring(void) {
 __attribute__((noreturn, force_align_arg_pointer)) extern void _start(void) {
     test_ring();
 
-    SYSCALL(SYS_exit_group, 1, 0);
+    syscall(SYS_exit_group, 1, 0);
 
     __builtin_unreachable();
 }

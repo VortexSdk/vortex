@@ -7,7 +7,7 @@
 /// Exits with a message if `stat` is false.
 VORTEX_PREFIX void assert(bool stat, const char *msg) {
     if (!stat) {
-        SYSCALL(SYS_write, 3, 1, (usize)msg, strlen(msg));
-        SYSCALL(SYS_exit, 1, 1);
+        syscall(SYS_write, 3, 1, (usize)msg, strlen(msg));
+        syscall(SYS_exit, 1, 1);
     }
 }

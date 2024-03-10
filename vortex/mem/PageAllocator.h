@@ -17,7 +17,7 @@ VORTEX_PREFIX PageAllocator page_init(usize n) {
 #ifdef __unix__
 
     usize res =
-        SYSCALL(SYS_mmap, 6, 0, len, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
+        syscall(SYS_mmap, 6, 0, len, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
 
     if (linux_get_syserrno(res) != SE_SUCCESS) {
         return (PageAllocator){.mem = nullptr, .len = 0};
@@ -31,5 +31,5 @@ VORTEX_PREFIX PageAllocator page_init(usize n) {
 
 /// Deallocates all the pages.
 VORTEX_PREFIX void page_deinit(PageAllocator *pa) {
-    linux_get_syserrno(SYSCALL(SYS_munmap, 2, (usize)((*pa).mem), (usize)((*pa).len)));
+    linux_get_syserrno(syscall(SYS_munmap, 2, (usize)((*pa).mem), (usize)((*pa).len)));
 }

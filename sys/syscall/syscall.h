@@ -331,4 +331,4 @@ VORTEX_PREFIX SyscallError linux_get_syserrno(usize r) {
     return (SyscallError)((signed_r > -4096 && signed_r < 0) ? -signed_r : 0);
 }
 
-#define SYSCALL(type, n, ...) syscall##n(type, __VA_ARGS__)
+#define syscall(type, n, ...) syscall##n(type, __VA_ARGS__)
