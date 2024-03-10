@@ -1,9 +1,7 @@
 #pragma once
 
-#include <linux/futex.h>
-#include <linux/mman.h>
-#include <linux/sched.h>
 #include <sys/sys.h>
+#include <sys/uapi.h>
 #include <vortex/mem/utils.h>
 #include <vortex/numbers.h>
 
@@ -20,7 +18,7 @@ void thread_entry(thread_stack *stack_data) {
 /// Allocates a thread for ring.
 VORTEX_PREFIX void *thread_create(usize stack_pages) {
     usize clone_res;
-    struct clone_args clonesys_args = (struct clone_args){
+    clone_args clonesys_args = (clone_args){
         .stack_size = (u64)stack_pages * PAGE_SIZE,
         .flags = CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_PARENT | CLONE_THREAD |
                  CLONE_IO,
@@ -31,8 +29,7 @@ VORTEX_PREFIX void *thread_create(usize stack_pages) {
     if (linux_get_syserrno(mmap_res) != SE_SUCCESS) return nullptr;
     clonesys_args.stack = (u64)(mmap_res);
 
-    clone_res =
-        SYSCALL(SYS_clone3, 2, (usize)&clonesys_args, (usize)sizeof(struct clone_args) - 3 * 8);
+    clone_res = SYSCALL(SYS_clone3, 2, (usize)&clonesys_args, (usize)sizeof(clone_args) - 3 * 8);
     if (linux_get_syserrno(clone_res) != SE_SUCCESS) return nullptr;
 
     return (void *)clone_res;
