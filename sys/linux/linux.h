@@ -1,6 +1,12 @@
 #pragma once
 
-#include "../../numbers.h"
+#pragma align(8)
+
+#include "vortex/numbers.h"
+
+#ifndef VORTEX_PREFIX
+    #define VORTEX_PREFIX extern
+#endif
 
 #if defined(__aarch64__) || defined(__ARM_ARCH_ISA_A64)
     #include "aarch64-syscall.h"
@@ -322,71 +328,145 @@ typedef enum SyscallError
 } SyscallError;
 
 /// O: read only
-#define O_RDONLY            00
+#define O_RDONLY             00
 /// O: write only
-#define O_WRONLY            01
+#define O_WRONLY             01
 /// O: read and write
-#define O_RDWR              02
+#define O_RDWR               02
 
 /// PROT: page can not be accessed
-#define PROT_NONE           0x0
+#define PROT_NONE            0x0
 /// PROT: page can be read
-#define PROT_READ           0x1
+#define PROT_READ            0x1
 /// PROT: page can be written
-#define PROT_WRITE          0x2
+#define PROT_WRITE           0x2
 /// PROT: page can be executed
-#define PROT_EXEC           0x4
+#define PROT_EXEC            0x4
 /// PROT: page may be used for atomic ops
-#define PROT_SEM            0x8
+#define PROT_SEM             0x8
 /// PROT: mprotect flag: extend change to start of growsdown vma
-#define PROT_GROWSDOWN      0x01000000
+#define PROT_GROWSDOWN       0x01000000
 /// PROT: mprotect flag: extend change to end of growsup vma
-#define PROT_GROWSUP        0x02000000
+#define PROT_GROWSUP         0x02000000
 
 /// Share changes
-#define MAP_SHARED          0x01
+#define MAP_SHARED           0x01
 /// Changes are private
-#define MAP_PRIVATE         0x02
+#define MAP_PRIVATE          0x02
 /// share + validate extension flags
-#define MAP_SHARED_VALIDATE 0x03
+#define MAP_SHARED_VALIDATE  0x03
 /// Mask for type of mapping
-#define MAP_TYPE            0x0f
+#define MAP_TYPE             0x0f
 /// Interpret addr exactly
-#define MAP_FIXED           0x10
+#define MAP_FIXED            0x10
 /// don't use a file
-#define MAP_ANONYMOUS       0x20
+#define MAP_ANONYMOUS        0x20
 // MAP_ 0x0100 - 0x4000 flags are per architecture
 /// populate (prefault) pagetables
-#define MAP_POPULATE        0x8000
+#define MAP_POPULATE         0x8000
 /// do not block on IO
-#define MAP_NONBLOCK        0x10000
+#define MAP_NONBLOCK         0x10000
 /// give out an address that is best suited for process/thread stacks
-#define MAP_STACK           0x20000
+#define MAP_STACK            0x20000
 /// create a huge page mapping
-#define MAP_HUGETLB         0x40000
+#define MAP_HUGETLB          0x40000
 /// perform synchronous page faults for the mapping
-#define MAP_SYNC            0x80000
+#define MAP_SYNC             0x80000
 /// MAP_FIXED which doesn't unmap underlying mapping
-#define MAP_FIXED_NOREPLACE 0x100000
+#define MAP_FIXED_NOREPLACE  0x100000
 /// For anonymous mmap, memory could be uninitialized
-#define MAP_UNINITIALIZED   0x4000000
+#define MAP_UNINITIALIZED    0x4000000
 
-struct stat {
-    unsigned short st_dev;
-    unsigned short st_ino;
-    unsigned short st_mode;
-    unsigned short st_nlink;
-    unsigned short st_uid;
-    unsigned short st_gid;
-    unsigned short st_rdev;
-    unsigned long st_size;
-    unsigned long st_atime;
-    unsigned long st_mtime;
-    unsigned long st_ctime;
-};
+/// signal mask to be sent at exit
+#define CSIGNAL              0x000000ff
+/// set if VM shared between processes
+#define CLONE_VM             0x00000100
+/// set if fs info shared between processes
+#define CLONE_FS             0x00000200
+/// set if open files shared between processes
+#define CLONE_FILES          0x00000400
+/// set if signal handlers and blocked signals shared
+#define CLONE_SIGHAND        0x00000800
+/// set if a pidfd should be placed in parent
+#define CLONE_PIDFD          0x00001000
+/// set if we want to let tracing continue on the child too
+#define CLONE_PTRACE         0x00002000
+/// set if the parent wants the child to wake it up on mm_release
+#define CLONE_VFORK          0x00004000
+/// set if we want to have the same parent as the cloner
+#define CLONE_PARENT         0x00008000
+/// Same thread group?
+#define CLONE_THREAD         0x00010000
+/// New mount namespace group
+#define CLONE_NEWNS          0x00020000
+/// share system V SEM_UNDO semantics
+#define CLONE_SYSVSEM        0x00040000
+/// create a new TLS for the child
+#define CLONE_SETTLS         0x00080000
+/// set the TID in the parent
+#define CLONE_PARENT_SETTID  0x00100000
+/// clear the TID in the child
+#define CLONE_CHILD_CLEARTID 0x00200000
+/// Unused, ignored
+#define CLONE_DETACHED       0x00400000
+/// set if the tracing process can't force CLONE_PTRACE on this clone
+#define CLONE_UNTRACED       0x00800000
+/// set the TID in the child
+#define CLONE_CHILD_SETTID   0x01000000
+/// New cgroup namespace
+#define CLONE_NEWCGROUP      0x02000000
+/// New utsname namespace
+#define CLONE_NEWUTS         0x04000000
+/// New ipc namespace
+#define CLONE_NEWIPC         0x08000000
+/// New user namespace
+#define CLONE_NEWUSER        0x10000000
+/// New pid namespace
+#define CLONE_NEWPID         0x20000000
+/// New network namespace
+#define CLONE_NEWNET         0x40000000
+/// Clone io context
+#define CLONE_IO             0x80000000
+
+// Flags for the clone3() syscall.
+/// Clear any signal handler and reset to SIG_DFL
+#define CLONE_CLEAR_SIGHAND  0x100000000ULL
+/// Clone into a specific cgroup given the right permissions
+#define CLONE_INTO_CGROUP    0x200000000ULL
+
+// cloning flags intersect with CSIGNAL so can be used with unshare and clone3 syscalls only:
+/// New time namespace
+#define CLONE_NEWTIME        0x00000080
+
+/// The structure is versioned by size and thus extensible. New struct members must go at the end
+/// of the struct and must be properly 64bit aligned.
+typedef struct clone_args {
+    /// Flags bit mask
+    u64 flags;
+    /// Where to store PID file descriptor (int *)
+    u64 pidfd;
+    /// Where to store child TID, in child's memory (pid_t *)
+    u64 child_tid;
+    /// Where to store child TID, in parent's memory (pid_t *)
+    u64 parent_tid;
+    /// Signal to deliver to parent on child termination
+    u64 exit_signal;
+    /// Pointer to lowest byte of stack
+    u64 stack;
+    /// Size of stack
+    u64 stack_size;
+    /// Location of new TLS
+    u64 tls;
+    // Pointer to a pid_t array (since Linux 5.5)
+    u64 set_tid;
+    /// Number of elements in set_tid (since Linux 5.5)
+    u64 set_tid_size;
+    /// File descriptor for target cgroup of child (since Linux 5.7)
+    u64 cgroup;
+} clone_args;
 
 /// Get the errno from a syscall return value. Zero means no error.
-FNDECL_PREFIX SyscallError linux_get_syserrno(usize r) {
+VORTEX_PREFIX SyscallError linux_get_syserrno(usize r) {
     i64 signed_r = (i64)r;
     return (SyscallError)((signed_r > -4096 && signed_r < 0) ? -signed_r : 0);
 }

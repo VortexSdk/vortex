@@ -14,8 +14,7 @@ While Vortex is designed to function optimally across multiple platforms, we rec
 ### Projects inside the monorepo
 - Vortex (A high-level cross-platform library)
 - VortexRing (A low-level Linux-only library for ring buffer kernel communication)
-- VortexSys (A low-level Linux-only library that contains the syscall wrappers)
-- VortexAbi (A low-level C library for providing fixed-size types)
+- VortexSys (A low-level Linux-only library that contains OS utilities)
 
 ### License
 Vortex is licensed under the [MIT](LICENSE) License, allowing for both personal and commercial use with minimal restrictions.

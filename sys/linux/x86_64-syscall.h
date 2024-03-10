@@ -1,6 +1,10 @@
 #pragma once
 
-#include "../../numbers.h"
+#include "vortex/numbers.h"
+
+#ifndef VORTEX_PREFIX
+    #define VORTEX_PREFIX extern
+#endif
 
 typedef enum SyscallType
 {
@@ -426,18 +430,18 @@ typedef enum SyscallType
 /// MAP: don't check for reservations
 #define MAP_NORESERVE  0x4000
 
-FNDECL_PREFIX usize syscall0(SyscallType type) {
+VORTEX_PREFIX usize syscall0(SyscallType type) {
     register usize _rax __asm__("rax") = type;
     __asm__ __volatile__("syscall" : "=r"(_rax) : "r"(_rax) : "rcx", "r11", "memory");
     return _rax;
 }
-FNDECL_PREFIX usize syscall1(SyscallType type, usize a1) {
+VORTEX_PREFIX usize syscall1(SyscallType type, usize a1) {
     register usize _rax __asm__("rax") = type;
     register usize _rdi __asm__("rdi") = a1;
     __asm__ __volatile__("syscall" : "=r"(_rax) : "r"(_rax), "r"(_rdi) : "rcx", "r11", "memory");
     return _rax;
 }
-FNDECL_PREFIX usize syscall2(SyscallType type, usize a1, usize a2) {
+VORTEX_PREFIX usize syscall2(SyscallType type, usize a1, usize a2) {
     register usize _rax __asm__("rax") = type;
     register usize _rdi __asm__("rdi") = a1;
     register usize _rsi __asm__("rsi") = a2;
@@ -447,7 +451,7 @@ FNDECL_PREFIX usize syscall2(SyscallType type, usize a1, usize a2) {
                          : "rcx", "r11", "memory");
     return _rax;
 }
-FNDECL_PREFIX usize syscall3(SyscallType type, usize a1, usize a2, usize a3) {
+VORTEX_PREFIX usize syscall3(SyscallType type, usize a1, usize a2, usize a3) {
     register usize _rax __asm__("rax") = type;
     register usize _rdi __asm__("rdi") = a1;
     register usize _rsi __asm__("rsi") = a2;
@@ -458,7 +462,7 @@ FNDECL_PREFIX usize syscall3(SyscallType type, usize a1, usize a2, usize a3) {
                          : "rcx", "r11", "memory");
     return _rax;
 }
-FNDECL_PREFIX usize syscall4(SyscallType type, usize a1, usize a2, usize a3, usize a4) {
+VORTEX_PREFIX usize syscall4(SyscallType type, usize a1, usize a2, usize a3, usize a4) {
     register usize _rax __asm__("rax") = type;
     register usize _rdi __asm__("rdi") = a1;
     register usize _rsi __asm__("rsi") = a2;
@@ -470,7 +474,7 @@ FNDECL_PREFIX usize syscall4(SyscallType type, usize a1, usize a2, usize a3, usi
                          : "rcx", "r11", "memory");
     return _rax;
 }
-FNDECL_PREFIX usize syscall5(SyscallType type, usize a1, usize a2, usize a3, usize a4, usize a5) {
+VORTEX_PREFIX usize syscall5(SyscallType type, usize a1, usize a2, usize a3, usize a4, usize a5) {
     register usize _rax __asm__("rax") = type;
     register usize _rdi __asm__("rdi") = a1;
     register usize _rsi __asm__("rsi") = a2;
@@ -483,7 +487,7 @@ FNDECL_PREFIX usize syscall5(SyscallType type, usize a1, usize a2, usize a3, usi
                          : "rcx", "r11", "memory");
     return _rax;
 }
-FNDECL_PREFIX usize syscall6(SyscallType type, usize a1, usize a2, usize a3, usize a4, usize a5,
+VORTEX_PREFIX usize syscall6(SyscallType type, usize a1, usize a2, usize a3, usize a4, usize a5,
                              usize a6) {
     register usize _rax __asm__("rax") = type;
     register usize _rdi __asm__("rdi") = a1;

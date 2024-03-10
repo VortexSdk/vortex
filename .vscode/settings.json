@@ -26,6 +26,7 @@
         "format": "c",
         "cstdlib": "c",
         "*.inc": "c",
-        "cassert": "c"
+        "cassert": "c",
+        "*.tcc": "c"
     }
 }

@@ -11,21 +11,22 @@ typedef struct ArenaAllocator {
 } ArenaAllocator;
 
 /// Allocates an Arena from the mem.
-FNDECL_PREFIX ArenaAllocator arena_init(void *mem, usize len) {
+VORTEX_PREFIX ArenaAllocator arena_init(void *mem, usize len) {
     return (ArenaAllocator){.mem = mem, .len = len, .pos = 0};
 }
 
 /// Realloc's implementation that's used in the Allocator interface.
-FNDECL_PREFIX void *arena_realloc(void *ctx, void *buf, usize len, usize new_len) {
+VORTEX_PREFIX void *arena_realloc(void *ctx, void *buf, usize len, usize new_len) {
     ArenaAllocator *self = (ArenaAllocator *)ctx;
     if (buf == nullptr) {
         // Alloc
+        void *ret;
         usize new_pos = self->pos + len;
         if (new_pos > self->len) {
             return nullptr;
         }
 
-        void *ret = (char *)self->mem + self->pos;
+        ret       = (char *)self->mem + self->pos;
         self->pos = new_pos;
         return ret;
     } else if (new_len != 0) {
@@ -44,11 +45,11 @@ FNDECL_PREFIX void *arena_realloc(void *ctx, void *buf, usize len, usize new_len
 }
 
 /// Returns an Allocator interface.
-FNDECL_PREFIX Allocator arena_allocator(ArenaAllocator *arena) {
-    return allocator_init((void *)arena, arena_realloc);
+VORTEX_PREFIX Allocator arena_allocator(ArenaAllocator *arena) {
+    return (Allocator){.ptr = (void *)arena, .realloc = arena_realloc};
 }
 
 /// Resets the Arena.
-FNDECL_PREFIX void arena_rest(ArenaAllocator *arena) {
+VORTEX_PREFIX void arena_rest(ArenaAllocator *arena) {
     (*arena).pos = 0;
 }

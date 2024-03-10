@@ -1,5 +1,6 @@
 const std = @import("std");
 
+var cwd: std.fs.Dir = undefined;
 var target: std.Build.ResolvedTarget = undefined;
 var optimize: std.builtin.OptimizeMode = undefined;
 
@@ -18,16 +19,14 @@ fn add_ctest(
     comptime subdir: []const u8,
     comptime names_len: comptime_int,
     comptime names: [names_len][]const u8,
-) void {
+) !void {
     inline for (names) |name| {
         const test_exe = b.addExecutable(.{
             .target = target,
             .optimize = optimize,
             .name = std.fmt.comptimePrint("{s}_test", .{name}),
         });
-        test_exe.addIncludePath(.{
-            .path = std.fmt.comptimePrint("{s}/include", .{subdir}),
-        });
+        test_exe.addIncludePath(.{ .path = "." });
         test_exe.addCSourceFile(.{
             .flags = switch (optimize) {
                 .Debug => &DEFAULT_CLANG_OPTIONS,
@@ -45,15 +44,23 @@ fn add_ctest(
 }
 
 pub fn build(b: *std.Build) !void {
+    cwd = std.fs.cwd();
     target = b.standardTargetOptions(.{});
     optimize = b.standardOptimizeOption(.{});
 
     const tests_step = b.step("test", "Runs all tests");
-    add_ctest(
+    try add_ctest(
         b,
         tests_step,
         "vortex",
         1,
         [_][]const u8{"mem"},
+    );
+    try add_ctest(
+        b,
+        tests_step,
+        "ring",
+        1,
+        [_][]const u8{"ring"},
     );
 }

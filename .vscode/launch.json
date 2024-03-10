@@ -8,6 +8,14 @@
             "name": "Vortex mem_test",
             "cwd": "${workspaceFolder}",
             "program": "${workspaceFolder}/zig-out/bin/mem_test",
+        },
+        {
+            "args": [],
+            "type": "lldb",
+            "request": "launch",
+            "name": "Ring mem_test",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/zig-out/bin/ring_test",
         }
     ]
 }

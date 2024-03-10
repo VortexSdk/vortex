@@ -3,7 +3,7 @@
 #include "numbers.h"
 
 /// Aligns the given number backward.
-FNDECL_PREFIX usize math_align_backward(usize addr, usize alignment) {
+VORTEX_PREFIX usize math_align_backward(usize addr, usize alignment) {
     // TODO: Panic
     // assert(isValidAlignGeneric(T, alignment));
 
@@ -14,7 +14,7 @@ FNDECL_PREFIX usize math_align_backward(usize addr, usize alignment) {
 }
 
 /// Aligns the given number forward.
-FNDECL_PREFIX usize math_align_forward(usize addr, usize alignment) {
+VORTEX_PREFIX usize math_align_forward(usize addr, usize alignment) {
     // TODO: Panic
     // assert(isValidAlignGeneric(T, alignment));
 
@@ -22,6 +22,6 @@ FNDECL_PREFIX usize math_align_forward(usize addr, usize alignment) {
 }
 
 /// Checks if the given number is a power of two.
-FNDECL_PREFIX bool isPowerOfTwo(usize num) {
+VORTEX_PREFIX bool isPowerOfTwo(usize num) {
     return (num != 0) && ((num & (num - 1)) == 0);
 }

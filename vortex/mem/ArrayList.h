@@ -16,17 +16,17 @@ typedef struct ArrayList {
 } ArrayList;
 
 /// Allocates an Arena from the mem.
-FNDECL_PREFIX ArrayList arraylist_init_with_capacity(Allocator allocator, usize cap) {
+VORTEX_PREFIX ArrayList arraylist_init_with_capacity(Allocator allocator, usize cap) {
     return (ArrayList){.mem = mem_alloc(allocator, cap), .cap = cap, .pos = 0};
 }
 
 /// Allocates an Arena from the mem.
-FNDECL_PREFIX ArrayList arraylist_init(Allocator allocator) {
+VORTEX_PREFIX ArrayList arraylist_init(Allocator allocator) {
     return arraylist_init_with_capacity(allocator, DEFAULT_ARRAYLIST_CAPACITY);
 }
 
 /// Pushes a new item to the ArrayList.
-FNDECL_PREFIX u8 push(ArrayList *self, void *entity) {
+VORTEX_PREFIX u8 push(ArrayList *self, void *entity) {
     if (self->pos >= self->cap) {
         self->mem = mem_resize_or_alloc(self->allocator, self->mem, self->cap, self->cap * 2);
         if (self->mem == nullptr) return 1;
@@ -39,7 +39,7 @@ FNDECL_PREFIX u8 push(ArrayList *self, void *entity) {
 }
 
 /// Fetches the item by index from the ArrayList.
-FNDECL_PREFIX void *get(ArrayList *self, usize idx) {
+VORTEX_PREFIX void *get(ArrayList *self, usize idx) {
     if (idx > self->pos) return nullptr;
 
     return (void *)((usize)(((char *)self->mem) [idx]));

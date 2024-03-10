@@ -1,6 +1,10 @@
 #pragma once
 
-#include "../../numbers.h"
+#include "vortex/numbers.h"
+
+#ifndef VORTEX_PREFIX
+    #define VORTEX_PREFIX extern
+#endif
 
 typedef enum SyscallType
 {
@@ -368,26 +372,26 @@ typedef enum SyscallType
 /// MAP: don't check for reservations
 #define MAP_NORESERVE  0x4000
 
-FNDECL_PREFIX usize syscall0(SyscallType type) {
+VORTEX_PREFIX usize syscall0(SyscallType type) {
     register long _x0 asm("x0");
     register long _x8 asm("x8") = type;
     asm volatile("svc #0" : "=r"(_x0) : "r"(_x8) : "memory");
     return _x0;
 }
-FNDECL_PREFIX usize syscall1(SyscallType type, usize a1) {
+VORTEX_PREFIX usize syscall1(SyscallType type, usize a1) {
     register long _x0 asm("x0") = a1;
     register long _x8 asm("x8") = type;
     asm volatile("svc #0" : "=r"(_x0) : "r"(_x8), "r"(_x0) : "memory");
     return _x0;
 }
-FNDECL_PREFIX usize syscall2(SyscallType type, usize a1, usize a2) {
+VORTEX_PREFIX usize syscall2(SyscallType type, usize a1, usize a2) {
     register long _x0 asm("x0") = a1;
     register long _x1 asm("x1") = a2;
     register long _x8 asm("x8") = type;
     asm volatile("svc #0" : "=r"(_x0) : "r"(_x8), "r"(_x0), "r"(_x1) : "memory");
     return _x0;
 }
-FNDECL_PREFIX usize syscall3(SyscallType type, usize a1, usize a2, usize a3) {
+VORTEX_PREFIX usize syscall3(SyscallType type, usize a1, usize a2, usize a3) {
     register long _x0 asm("x0") = a1;
     register long _x1 asm("x1") = a2;
     register long _x2 asm("x2") = a3;
@@ -395,7 +399,7 @@ FNDECL_PREFIX usize syscall3(SyscallType type, usize a1, usize a2, usize a3) {
     asm volatile("svc #0" : "=r"(_x0) : "r"(_x8), "r"(_x0), "r"(_x1), "r"(_x2) : "memory");
     return _x0;
 }
-FNDECL_PREFIX usize syscall4(SyscallType type, usize a1, usize a2, usize a3, usize a4) {
+VORTEX_PREFIX usize syscall4(SyscallType type, usize a1, usize a2, usize a3, usize a4) {
     register long _x0 asm("x0") = a1;
     register long _x1 asm("x1") = a2;
     register long _x2 asm("x2") = a3;
@@ -407,7 +411,7 @@ FNDECL_PREFIX usize syscall4(SyscallType type, usize a1, usize a2, usize a3, usi
                  : "memory");
     return _x0;
 }
-FNDECL_PREFIX usize syscall5(SyscallType type, usize a1, usize a2, usize a3, usize a4, usize a5) {
+VORTEX_PREFIX usize syscall5(SyscallType type, usize a1, usize a2, usize a3, usize a4, usize a5) {
     register long _x0 asm("x0") = a1;
     register long _x1 asm("x1") = a2;
     register long _x2 asm("x2") = a3;
@@ -420,7 +424,7 @@ FNDECL_PREFIX usize syscall5(SyscallType type, usize a1, usize a2, usize a3, usi
                  : "memory");
     return _x0;
 }
-FNDECL_PREFIX usize syscall6(SyscallType type, usize a1, usize a2, usize a3, usize a4, usize a5,
+VORTEX_PREFIX usize syscall6(SyscallType type, usize a1, usize a2, usize a3, usize a4, usize a5,
                              usize a6) {
     register long _x0 asm("x0") = a1;
     register long _x1 asm("x1") = a2;
