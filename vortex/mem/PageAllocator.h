@@ -1,8 +1,9 @@
 #pragma once
 
 #include "../numbers.h"
-#include "sys/sys.h"
 #include "utils.h"
+#include <linux/mman.h>
+#include <sys/sys.h>
 
 typedef struct PageAllocator {
     void *mem;

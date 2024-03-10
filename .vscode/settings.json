@@ -27,6 +27,11 @@
         "cstdlib": "c",
         "*.inc": "c",
         "cassert": "c",
-        "*.tcc": "c"
+        "*.tcc": "c",
+        "algorithm": "c",
+        "string_view": "c",
+        "initializer_list": "c",
+        "span": "c",
+        "valarray": "c"
     }
 }

@@ -1,10 +1,6 @@
 #pragma once
 
-#include "vortex/numbers.h"
-
-#ifndef VORTEX_PREFIX
-    #define VORTEX_PREFIX extern
-#endif
+#include <vortex/numbers.h>
 
 typedef enum SyscallType
 {
@@ -377,58 +373,6 @@ typedef enum SyscallType
     SYS_futex_wait              = 455,
     SYS_futex_requeue           = 456,
 } SyscallType;
-
-/// O:
-#define O_CREAT        0100
-/// O:
-#define O_EXCL         0200
-/// O:
-#define O_NOCTTY       0400
-/// O:
-#define O_TRUNC        01000
-/// O:
-#define O_APPEND       02000
-/// O:
-#define O_NONBLOCK     04000
-/// O:
-#define O_DSYNC        010000
-/// O:
-#define O_SYNC         04010000
-/// O:
-#define O_RSYNC        04010000
-/// O:
-#define O_DIRECTORY    0200000
-/// O:
-#define O_NOFOLLOW     0400000
-/// O:
-#define O_CLOEXEC      02000000
-/// O:
-#define O_ASYNC        020000
-/// O:
-#define O_DIRECT       040000
-/// O:
-#define O_LARGEFILE    0
-/// O:
-#define O_NOATIME      01000000;
-/// O:
-#define O_PATH         010000000;
-/// O:
-#define O_TMPFILE      020200000;
-/// O:
-#define O_NDELAY       O_NONBLOCK
-
-/// MAP: only give out 32bit addresses
-#define MAP_32BIT      0x40
-/// MAP: stack-like segment
-#define MAP_GROWSDOWN  0x0100
-/// MAP: ETXTBSY
-#define MAP_DENYWRITE  0x0800
-/// MAP: mark it as an executable
-#define MAP_EXECUTABLE 0x1000
-/// MAP: pages are locked
-#define MAP_LOCKED     0x2000
-/// MAP: don't check for reservations
-#define MAP_NORESERVE  0x4000
 
 VORTEX_PREFIX usize syscall0(SyscallType type) {
     register usize _rax __asm__("rax") = type;

@@ -12,4 +12,5 @@
 #include "math.h"
 #include "mem/mem.h"
 #include "numbers.h"
-#include "sys/sys.h"
+#include "thread/thread.h"
+#include <sys/sys.h>

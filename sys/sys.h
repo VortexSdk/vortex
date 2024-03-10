@@ -6,4 +6,4 @@
     #define PAGE_SIZE (4 * 1024)
 #endif
 
-#include "linux/linux.h"
+#include "syscall/syscall.h"

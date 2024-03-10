@@ -27,6 +27,7 @@ fn add_ctest(
             .name = std.fmt.comptimePrint("{s}_test", .{name}),
         });
         test_exe.addIncludePath(.{ .path = "." });
+        test_exe.addIncludePath(.{ .path = "sys/linux-uapi" });
         test_exe.addCSourceFile(.{
             .flags = switch (optimize) {
                 .Debug => &DEFAULT_CLANG_OPTIONS,
@@ -42,7 +43,6 @@ fn add_ctest(
         test_step.dependOn(&b.addRunArtifact(test_exe).step);
     }
 }
-
 pub fn build(b: *std.Build) !void {
     cwd = std.fs.cwd();
     target = b.standardTargetOptions(.{});
@@ -53,14 +53,15 @@ pub fn build(b: *std.Build) !void {
         b,
         tests_step,
         "vortex",
-        1,
-        [_][]const u8{"mem"},
+        2,
+        [_][]const u8{ "mem", "thread" },
     );
-    try add_ctest(
-        b,
-        tests_step,
-        "ring",
-        1,
-        [_][]const u8{"ring"},
+
+    const uapi_step = b.step(
+        "gen-linux-uapi",
+        "Downloads and compiles linux uapi headers",
     );
+    const cd_comm = b.addSystemCommand(&[_][]const u8{"./patch.sh"});
+    cd_comm.setCwd(.{ .path = "sys/linux-uapi" });
+    uapi_step.dependOn(&cd_comm.step);
 }

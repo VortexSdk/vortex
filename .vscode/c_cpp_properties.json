@@ -6,7 +6,8 @@
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/vortex",
                 "${workspaceFolder}/sys",
-                "${workspaceFolder}/ring/include/**"
+                "${workspaceFolder}/sys/linux-uapi",
+                "${workspaceFolder}/ring"
             ],
             "defines": [],
             "cStandard": "c17",

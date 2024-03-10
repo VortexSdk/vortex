@@ -1,4 +1,4 @@
-#include "vortex/vortex.h"
+#include <vortex/vortex.h>
 
 void test_arena() {
     Allocator allocator;
