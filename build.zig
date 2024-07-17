@@ -1,67 +1,60 @@
 const std = @import("std");
 
-var cwd: std.fs.Dir = undefined;
-var target: std.Build.ResolvedTarget = undefined;
-var optimize: std.builtin.OptimizeMode = undefined;
-
-const DEFAULT_CLANG_OPTIONS: [6][]const u8 = [6][]const u8{
-    "-std=c17",
-    "-Weverything",
-    "-Wno-unused-function",
-    "-Wno-unsafe-buffer-usage",
-    "-Wno-missing-prototypes",
-    "-Wno-reserved-identifier",
-};
-
-fn add_ctest(
+pub fn add_tests(
     b: *std.Build,
-    test_step: *std.Build.Step,
-    comptime subdir: []const u8,
-    comptime names_len: comptime_int,
-    comptime names: [names_len][]const u8,
-) !void {
-    inline for (names) |name| {
-        const test_exe = b.addExecutable(.{
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    swiftzig: *std.Build.Module,
+    tests_step: *std.Build.Step,
+    comptime tests: anytype,
+    comptime exe_tests: anytype,
+) void {
+    inline for (tests) |name| {
+        const new_tests = b.addTest(.{
             .target = target,
             .optimize = optimize,
-            .name = std.fmt.comptimePrint("{s}_test", .{name}),
+            .name = std.fmt.comptimePrint("{s}_tests", .{name}),
+            .root_source_file = b.path(std.fmt.comptimePrint("tests/{s}.zig", .{name})),
         });
-        test_exe.addIncludePath(.{ .path = "." });
-        test_exe.addIncludePath(.{ .path = "sys/linux-uapi" });
-        test_exe.addCSourceFile(.{
-            .flags = switch (optimize) {
-                .Debug => &DEFAULT_CLANG_OPTIONS,
-                .ReleaseSafe => &(DEFAULT_CLANG_OPTIONS ++ [_][]const u8{"-O3"}),
-                .ReleaseSmall => &(DEFAULT_CLANG_OPTIONS ++ [_][]const u8{"-Oz"}),
-                .ReleaseFast => &(DEFAULT_CLANG_OPTIONS ++ [_][]const u8{"-Ofast"}),
-            },
-            .file = .{
-                .path = std.fmt.comptimePrint("{s}/tests/{s}.c", .{ subdir, name }),
-            },
+        new_tests.root_module.addImport("swiftzig", swiftzig);
+        tests_step.dependOn(&b.addRunArtifact(new_tests).step);
+        tests_step.dependOn(&b.addInstallArtifact(new_tests, .{}).step);
+    }
+    inline for (exe_tests) |name| {
+        const new_tests = b.addExecutable(.{
+            .target = target,
+            .optimize = optimize,
+            .name = std.fmt.comptimePrint("{s}_tests", .{name}),
+            .root_source_file = b.path(std.fmt.comptimePrint("tests/{s}.zig", .{name})),
         });
-        test_step.dependOn(&b.addInstallArtifact(test_exe, .{}).step);
-        test_step.dependOn(&b.addRunArtifact(test_exe).step);
+        new_tests.root_module.addImport("swiftzig", swiftzig);
+        tests_step.dependOn(&b.addRunArtifact(new_tests).step);
+        tests_step.dependOn(&b.addInstallArtifact(new_tests, .{}).step);
     }
 }
+
 pub fn build(b: *std.Build) !void {
-    cwd = std.fs.cwd();
-    target = b.standardTargetOptions(.{});
-    optimize = b.standardOptimizeOption(.{});
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
 
-    const tests_step = b.step("test", "Runs all tests");
-    try add_ctest(
+    const swiftzig = b.createModule(.{ .root_source_file = b.path("src/root.zig") });
+    try b.modules.put(b.dupe("swiftzig"), swiftzig);
+
+    const tests_step = b.step("test", "Runs all the tests");
+    add_tests(
         b,
+        target,
+        optimize,
+        swiftzig,
         tests_step,
-        "vortex",
-        2,
-        [_][]const u8{ "mem", "thread" },
+        .{ "mem", "math" },
+        .{
+            "start0-u8",
+            "start0-void",
+            "start1-u8",
+            "start1-void",
+            "start2-u8",
+            "start2-void",
+        },
     );
-
-    const uapi_step = b.step(
-        "gen-linux-uapi",
-        "Downloads and compiles linux uapi headers",
-    );
-    const cd_comm = b.addSystemCommand(&[_][]const u8{"./patch.sh"});
-    cd_comm.setCwd(.{ .path = "sys/linux-uapi" });
-    uapi_step.dependOn(&cd_comm.step);
 }

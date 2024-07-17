@@ -1,21 +1,13 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "args": [],
-            "type": "lldb",
-            "request": "launch",
-            "name": "Vortex mem_test",
-            "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/zig-out/bin/mem_test",
-        },
-        {
-            "args": [],
-            "type": "lldb",
-            "request": "launch",
-            "name": "Ring mem_test",
-            "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/zig-out/bin/ring_test",
-        }
-    ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "args": [],
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug mem tests",
+      "cwd": "${workspaceFolder}",
+      "program": "${workspaceFolder}/zig-out/bin/x"
+    }
+  ]
 }

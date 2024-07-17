@@ -1,7 +1,2 @@
-zig-cache
 zig-out
-
-sys/linux-uapi/*.tar.gz
-sys/linux-uapi/linux*
-!sys/linux-uapi/linux
-!sys/linux-uapi/linux-uapi
+.zig-cache
