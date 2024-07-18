@@ -1,5 +1,5 @@
 const builtin = @import("builtin");
-const os = @import("os.zig");
+const os = @import("../os/os.zig");
 
 const MmapMemProt = enum {
     ReadOnly,

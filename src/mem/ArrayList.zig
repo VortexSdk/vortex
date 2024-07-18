@@ -1,20 +1,21 @@
-const Allocator = @import("Allocator.zig");
+const Allocator = @import("allocator/Allocator.zig");
+
 pub fn ArrayList(comptime T: type) type {
     return struct {
         /// An ArrayList implementation that relies on the caller for handling the lifetime.
         const ArrayListInner = @This();
 
-        allocator: Allocator,
         mem: []T,
         pos: usize = 0,
+        allocator: *Allocator,
 
         /// Initializes an ArrayList.
-        pub fn init(allocator: Allocator) Allocator.AllocErr!ArrayListInner {
+        pub fn init(allocator: *Allocator) Allocator.AllocErr!ArrayListInner {
             return init_with_capacity(allocator, 10);
         }
 
         /// Initializes an ArrayList with an inital capacity.
-        pub fn init_with_capacity(allocator: Allocator, capacity: usize) Allocator.AllocErr!ArrayListInner {
+        pub fn init_with_capacity(allocator: *Allocator, capacity: usize) Allocator.AllocErr!ArrayListInner {
             return ArrayListInner{ .allocator = allocator, .mem = try allocator.alloc(T, capacity), .pos = 0 };
         }
 

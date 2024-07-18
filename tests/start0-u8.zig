@@ -1,6 +1,6 @@
-const swiftzig = @import("swiftzig");
+const vortex = @import("vortex");
 
-pub usingnamespace swiftzig.start;
+pub usingnamespace vortex.start;
 
 pub fn main() u8 {
     return 0;

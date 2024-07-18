@@ -1,7 +1,7 @@
 const builtin = @import("builtin");
 const os = @import("../os/os.zig");
-const Allocator = @import("Allocator.zig");
 const math = @import("../math.zig");
+const Allocator = @import("allocator/Allocator.zig");
 
 const PageAllocatorInitError = error{
     FailedToInitialize,
@@ -17,16 +17,16 @@ pub fn init(n: usize) PageAllocatorInitError!PageAllocator {
     @setRuntimeSafety(false);
     const len = n * os.page_size;
     if (builtin.os.tag == .linux) {
-        const mmapsys_res = os.linux.syscall(.mmap, .{
+        const mmapsys_res = os.syscall.syscall(.mmap, .{
             @as(usize, 0),
             len,
-            os.linux.PROT.READ | os.linux.PROT.WRITE,
-            os.linux.MAP.ANONYMOUS | os.linux.MAP.PRIVATE,
+            os.syscall.PROT.READ | os.syscall.PROT.WRITE,
+            os.syscall.MAP.ANONYMOUS | os.syscall.MAP.PRIVATE,
             0,
             @as(u64, 0),
         });
 
-        if (os.linux.get_errno(mmapsys_res) == .SUCCESS) {
+        if (os.syscall.get_errno(mmapsys_res) == .SUCCESS) {
             return PageAllocator{
                 .mem = @as(
                     [*]align(os.page_size) u8,
@@ -43,6 +43,6 @@ pub fn init(n: usize) PageAllocatorInitError!PageAllocator {
 pub fn deinit(self: *PageAllocator) void {
     @setRuntimeSafety(false);
     if (builtin.os.tag == .linux) {
-        _ = os.linux.syscall(.munmap, .{ self.mem.ptr, self.mem.len });
+        _ = os.syscall.syscall(.munmap, .{ self.mem.ptr, self.mem.len });
     }
 }

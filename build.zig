@@ -4,7 +4,7 @@ pub fn add_tests(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
-    swiftzig: *std.Build.Module,
+    vortex: *std.Build.Module,
     tests_step: *std.Build.Step,
     comptime tests: anytype,
     comptime exe_tests: anytype,
@@ -16,7 +16,7 @@ pub fn add_tests(
             .name = std.fmt.comptimePrint("{s}_tests", .{name}),
             .root_source_file = b.path(std.fmt.comptimePrint("tests/{s}.zig", .{name})),
         });
-        new_tests.root_module.addImport("swiftzig", swiftzig);
+        new_tests.root_module.addImport("vortex", vortex);
         tests_step.dependOn(&b.addRunArtifact(new_tests).step);
         tests_step.dependOn(&b.addInstallArtifact(new_tests, .{}).step);
     }
@@ -27,7 +27,7 @@ pub fn add_tests(
             .name = std.fmt.comptimePrint("{s}_tests", .{name}),
             .root_source_file = b.path(std.fmt.comptimePrint("tests/{s}.zig", .{name})),
         });
-        new_tests.root_module.addImport("swiftzig", swiftzig);
+        new_tests.root_module.addImport("vortex", vortex);
         tests_step.dependOn(&b.addRunArtifact(new_tests).step);
         tests_step.dependOn(&b.addInstallArtifact(new_tests, .{}).step);
     }
@@ -37,15 +37,15 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const swiftzig = b.createModule(.{ .root_source_file = b.path("src/root.zig") });
-    try b.modules.put(b.dupe("swiftzig"), swiftzig);
+    const vortex = b.createModule(.{ .root_source_file = b.path("src/root.zig") });
+    try b.modules.put(b.dupe("vortex"), vortex);
 
     const tests_step = b.step("test", "Runs all the tests");
     add_tests(
         b,
         target,
         optimize,
-        swiftzig,
+        vortex,
         tests_step,
         .{ "mem", "math" },
         .{

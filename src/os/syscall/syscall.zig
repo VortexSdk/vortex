@@ -1,5 +1,5 @@
 const builtin = @import("builtin");
-const arch_syscall = if (builtin.cpu.arch == .x86_64) @import("x86_64-syscall.zig") else @import("aarch64-syscall.zig");
+const arch_syscall = if (builtin.cpu.arch == .x86_64) @import("x86_64.zig") else @import("aarch64.zig");
 
 pub const syscall = arch_syscall.syscall;
 pub const SyscallType = arch_syscall.SyscallType;
