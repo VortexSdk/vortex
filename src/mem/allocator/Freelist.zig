@@ -7,7 +7,7 @@ pub const FreeListNode = packed struct {
 };
 pub const Context = struct { pos: usize = 0, freelist: ?*FreeListNode = null };
 
-pub fn alloc(self: *Allocator, size: usize) ?[*]align(8) u8 {
+pub inline fn alloc(self: *Allocator, size: usize) ?[*]align(8) u8 {
     if (self.ctx.freelist.freelist) |freelist| {
         if (freelist.len >= size) {
             var freelist_slice: []u8 = undefined;
@@ -32,7 +32,7 @@ pub fn alloc(self: *Allocator, size: usize) ?[*]align(8) u8 {
     return ret;
 }
 
-pub fn resize(self: *Allocator, buf: ?[*]align(8) u8, size: usize, new_size: usize) ?[*]align(8) u8 {
+pub inline fn resize(self: *Allocator, buf: ?[*]align(8) u8, size: usize, new_size: usize) ?[*]align(8) u8 {
     if (@intFromPtr(self.mem[self.ctx.freelist.pos..].ptr) == (@intFromPtr(buf) + size)) {
         const new_pos = self.ctx.freelist.pos + (new_size - size);
         if (new_pos < self.mem.len) {
@@ -44,7 +44,7 @@ pub fn resize(self: *Allocator, buf: ?[*]align(8) u8, size: usize, new_size: usi
     return null;
 }
 
-pub fn free(self: *Allocator, buf: ?[*]align(8) u8, size: usize) void {
+pub inline fn free(self: *Allocator, buf: ?[*]align(8) u8, size: usize) void {
     const freelist = @as(*FreeListNode, @alignCast(@ptrCast(buf)));
 
     if (size > 16) {
