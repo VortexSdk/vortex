@@ -44,6 +44,8 @@ pub fn init(mem: []align(os.page_size) u8, mm: MemManagement) Allocator {
 
 /// Allocates a slice. Types that aren't aligned on 8 bytes will be stored with padding.
 pub fn alloc(self: *Allocator, comptime T: type, len: usize) AllocErr![]T {
+    @setRuntimeSafety(false);
+
     if (switch (self.ctx) {
         .arena => Arena.alloc(
             self,
@@ -60,11 +62,15 @@ pub fn alloc(self: *Allocator, comptime T: type, len: usize) AllocErr![]T {
 
 /// Allocates an element.
 pub fn create(self: *Allocator, comptime T: type) AllocErr!T {
+    @setRuntimeSafety(false);
+
     return (try self.alloc(T, 1))[0];
 }
 
 /// Resizes the slice in place.
 pub fn resize(self: *Allocator, comptime T: type, buf: []T, new_len: usize) ResizeErr![]T {
+    @setRuntimeSafety(false);
+
     if (switch (self.ctx) {
         .arena => Arena.resize(
             self,
@@ -85,6 +91,8 @@ pub fn resize(self: *Allocator, comptime T: type, buf: []T, new_len: usize) Resi
 
 /// Resizes the slice in place or allocates a new slice if failed.
 pub fn resize_or_alloc(self: *Allocator, comptime T: type, buf: []T, new_size: usize) AllocErr![]T {
+    @setRuntimeSafety(false);
+
     if (self.resize(T, buf, new_size)) |resized| {
         return resized;
     } else |_| {
@@ -97,6 +105,8 @@ pub fn resize_or_alloc(self: *Allocator, comptime T: type, buf: []T, new_size: u
 
 /// Duplicates the slice.
 pub fn dupe(self: *Allocator, comptime T: type, buf: []const T) AllocErr![]T {
+    @setRuntimeSafety(false);
+
     const new_buf = try self.alloc(T, buf.len);
     @memcpy(new_buf, buf);
 
@@ -105,6 +115,8 @@ pub fn dupe(self: *Allocator, comptime T: type, buf: []const T) AllocErr![]T {
 
 /// Frees the slice.
 pub fn free(self: *Allocator, buf: anytype) void {
+    @setRuntimeSafety(false);
+
     switch (self.ctx) {
         .arena => Arena.free(
             self,

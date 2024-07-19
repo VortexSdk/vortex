@@ -5,12 +5,17 @@ pub const ArrayList = @import("ArrayList.zig").ArrayList;
 
 /// Returns the length of a null-terminated string.
 pub fn strlen(ptr: [*:0]const u8) usize {
+    @setRuntimeSafety(false);
+
     var i: usize = 0;
     while (ptr[i] != 0) i += 1;
     return i;
 }
+
 /// Converts a null-terminated string to a buffer.
 pub fn span(ptr: [*:0]const u8) []const u8 {
+    @setRuntimeSafety(false);
+
     return ptr[0..strlen(ptr)];
 }
 
@@ -23,13 +28,18 @@ inline fn if_scalar_unequal(comptime T: type, left: []const T, right: []const T)
     return false;
 }
 pub fn eql_nocheck(comptime T: type, a: []const T, b: []const T) bool {
+    @setRuntimeSafety(false);
+
     for (a, b) |a_elem, b_elem| {
         if (a_elem != b_elem) return false;
     }
+
     return true;
 }
 /// Checks if a and b are equal.
 pub fn eql(comptime T: type, a: []const T, b: []const T) bool {
+    @setRuntimeSafety(false);
+
     if (a.len != b.len) return false;
     if (a.ptr == b.ptr) return true;
     if (a.len == 0) return true;

@@ -1,5 +1,6 @@
 /// Aligns the given number backward.
 pub fn alignBackward(comptime T: type, addr: T, alignment: T) T {
+    @setRuntimeSafety(false);
     // TODO: Panic
     // assert(isValidAlignGeneric(T, alignment));
 
@@ -11,6 +12,7 @@ pub fn alignBackward(comptime T: type, addr: T, alignment: T) T {
 
 /// Aligns the given number forward.
 pub fn alignForward(comptime T: type, addr: T, alignment: T) T {
+    @setRuntimeSafety(false);
     // TODO: Panic
     // assert(isValidAlignGeneric(T, alignment));
 
@@ -19,6 +21,8 @@ pub fn alignForward(comptime T: type, addr: T, alignment: T) T {
 
 /// Checks if the given number is a power of two.
 pub fn isPowerOfTwo(num: anytype) bool {
+    @setRuntimeSafety(false);
+
     return (num != 0) and ((num & (num - 1)) == 0);
 }
 
@@ -67,6 +71,8 @@ pub fn ceilPowerOfTwo(num: anytype) @TypeOf(num) {
 
 /// Returns the numeric value as binary.
 pub fn asBinary(comptime T: type, n: T) [@bitSizeOf(T)]u8 {
+    @setRuntimeSafety(false);
+
     const Bits = @bitSizeOf(T);
     const ones: @Vector(Bits, u8) = @splat('1');
     const zeroes: @Vector(Bits, u8) = @splat('0');
@@ -76,11 +82,15 @@ pub fn asBinary(comptime T: type, n: T) [@bitSizeOf(T)]u8 {
 }
 /// Returns the numeric value as binary with no leading.
 pub fn asBinaryNoLeading(comptime T: type, n: T, buf: *[@bitSizeOf(T)]u8) []const u8 {
+    @setRuntimeSafety(false);
+
     buf.* = asBinary(T, n);
     return buf[@clz(n)..];
 }
 
 fn nibSwap(comptime T: type, n: T) T {
+    @setRuntimeSafety(false);
+
     const MaskVec = @Vector(@sizeOf(T), u8);
     const high: T = @bitCast(@as(MaskVec, @splat(0xF0)));
     const low: T = @bitCast(@as(MaskVec, @splat(0x0F)));
@@ -89,6 +99,8 @@ fn nibSwap(comptime T: type, n: T) T {
 }
 /// Returns the numeric value as hex.
 pub fn asHex(comptime T: type, n: T) [@sizeOf(T) * 2]u8 {
+    @setRuntimeSafety(false);
+
     const Nibs = @sizeOf(T) * 2;
     const nibs: @Vector(Nibs, u4) = @bitCast(nibSwap(T, n));
     const mask: @Vector(Nibs, u4) = @splat(0b1010);
@@ -104,6 +116,8 @@ pub fn asHex(comptime T: type, n: T) [@sizeOf(T) * 2]u8 {
 }
 /// Returns the numeric value as hex with no leading.
 pub fn asHexNoLeading(comptime T: type, n: T, buf: *[@sizeOf(T) * 2]u8) []const u8 {
+    @setRuntimeSafety(false);
+
     buf.* = asHex(T, n);
     return buf[@clz(n) / 4 ..];
 }

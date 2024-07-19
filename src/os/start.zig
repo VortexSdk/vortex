@@ -56,6 +56,8 @@ pub fn start() callconv(.C) noreturn {
 /// The most simple panic implementation.
 pub fn panic(msg: []const u8, _: @TypeOf(@errorReturnTrace()), _: ?usize) noreturn {
     @setCold(true);
+    @setRuntimeSafety(false);
+
     var bufprinter = printer.BufPrinter(1024).init();
     bufprinter.println_many(2, .{ "Vortex paniced: ", msg });
     bufprinter.flush();

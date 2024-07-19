@@ -15,6 +15,7 @@ const PageAllocator = @This();
 /// Allocates n pages.
 pub fn init(n: usize) PageAllocatorInitError!PageAllocator {
     @setRuntimeSafety(false);
+
     const len = n * os.page_size;
     if (builtin.os.tag == .linux) {
         const mmapsys_res = os.syscall.syscall(.mmap, .{
@@ -42,6 +43,7 @@ pub fn init(n: usize) PageAllocatorInitError!PageAllocator {
 /// Deallocates all the pages.
 pub fn deinit(self: *PageAllocator) void {
     @setRuntimeSafety(false);
+
     if (builtin.os.tag == .linux) {
         _ = os.syscall.syscall(.munmap, .{ self.mem.ptr, self.mem.len });
     }

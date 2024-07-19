@@ -21,6 +21,8 @@ pub fn ArrayList(comptime T: type) type {
 
         /// Pushes a new item to the ArrayList.
         pub fn push(self: *ArrayListInner, entity: T) Allocator.AllocErr!void {
+            @setRuntimeSafety(false);
+
             if (self.pos >= self.mem.len) {
                 self.mem = try self.allocator.resize_or_alloc(T, self.mem, self.mem.len * 2);
             }
@@ -31,6 +33,8 @@ pub fn ArrayList(comptime T: type) type {
 
         /// Fetches the item by index from the ArrayList.
         pub fn get(self: *ArrayListInner, idx: usize) ?T {
+            @setRuntimeSafety(false);
+
             if (idx > self.pos) return null;
 
             return self.mem[idx];
@@ -38,6 +42,8 @@ pub fn ArrayList(comptime T: type) type {
 
         /// Returns an slice that contains all the pushed elements.
         pub fn get_all(self: *ArrayListInner) []T {
+            @setRuntimeSafety(false);
+
             return self.mem[0..self.pos];
         }
     };

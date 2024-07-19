@@ -417,6 +417,8 @@ pub const stat = extern struct {
 
 /// Get the errno from a syscall return value. Zero means no error.
 pub fn get_errno(r: usize) Error {
+    @setRuntimeSafety(false);
+
     const signed_r = @as(isize, @bitCast(r));
     const int = if (signed_r > -4096 and signed_r < 0) -signed_r else 0;
     return @as(Error, @enumFromInt(int));

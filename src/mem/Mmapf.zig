@@ -26,6 +26,7 @@ pub const MmapfInitError = error{
 /// Maps a file to memory
 pub fn init(comptime kind: MmapMemProt, path: [*:0]const u8) MmapfInitError!Mmapf {
     @setRuntimeSafety(false);
+
     if (builtin.os.tag == .linux) {
         const opensys_res = os.linux.syscall(.open, .{
             path,
@@ -79,6 +80,7 @@ pub fn init(comptime kind: MmapMemProt, path: [*:0]const u8) MmapfInitError!Mmap
 /// Unmaps a memory-mapped file
 pub fn deinit(self: *Mmapf) void {
     @setRuntimeSafety(false);
+
     if (builtin.os.tag == .linux) {
         _ = os.linux.syscall(.munmap, .{ self.mem.ptr, self.mem.len });
     }

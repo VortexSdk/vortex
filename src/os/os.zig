@@ -17,6 +17,7 @@ pub const page_size = switch (builtin.cpu.arch) {
 // Exits the program.
 pub fn exit(status: u8) void {
     @setRuntimeSafety(false);
+
     if (builtin.os.tag == .linux) {
         _ = syscall.syscall(.exit_group, .{
             @as(usize, @bitCast(@as(isize, status))),
@@ -27,6 +28,7 @@ pub fn exit(status: u8) void {
 // Prints to stdout.
 pub fn print(buf: []const u8) void {
     @setRuntimeSafety(false);
+
     if (builtin.os.tag == .linux) {
         _ = syscall.syscall(.write, .{
             0,

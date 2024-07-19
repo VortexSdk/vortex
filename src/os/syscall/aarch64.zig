@@ -351,6 +351,7 @@ pub const MAP = struct {
 
 pub fn syscall(syscall_type: SyscallType, args: anytype) usize {
     @setRuntimeSafety(false);
+
     return switch (args.len) {
         1 => asm volatile ("svc #0"
             : [ret] "={x0}" (-> usize),
