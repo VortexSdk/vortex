@@ -52,7 +52,7 @@ pub const socket_uring_op_setsockopt: c_int = 3;
 /// flags for ioring_register_pbuf_ring.
 ///
 /// iou_pbuf_ring_mmap:	if set, kernel will allocate the memory for the ring.
-///			the application must not set a ring_addr in struct
+///			the application must not set a ring_addr in extern struct
 ///			io_uring_buf_reg, instead it must subsequently call
 ///			mmap(2) with the offset set as:
 ///			ioring_off_pbuf_ring | (bgid << ioring_off_pbuf_shift)
@@ -64,7 +64,7 @@ pub const ioring_rsrc_register = packed struct {
     _: u63 = 0,
 };
 
-pub const io_uring_rsrc_register = struct {
+pub const io_uring_rsrc_register = extern struct {
     nr: u32,
     flags: u32,
     resv2: u64,
@@ -72,13 +72,13 @@ pub const io_uring_rsrc_register = struct {
     tags: u64 align(8),
 };
 
-pub const io_uring_rsrc_update = struct {
+pub const io_uring_rsrc_update = extern struct {
     offset: u32,
     resv: u32,
     data: u64 align(8),
 };
 
-pub const io_uring_rsrc_update2 = struct {
+pub const io_uring_rsrc_update2 = extern struct {
     offset: u32,
     resv: u32,
     data: u64 align(8),
@@ -87,14 +87,14 @@ pub const io_uring_rsrc_update2 = struct {
     resv2: u32,
 };
 
-pub const io_uring_probe_op = struct {
+pub const io_uring_probe_op = extern struct {
     op: u8,
     resv: u8,
     flags: u16, // io_uring_op_* flags
     resv2: u32,
 };
 
-pub const io_uring_probe = struct {
+pub const io_uring_probe = extern struct {
     last_op: u8, // last opcode supported
     ops_len: u8, // length of ops[] array below
     resv: u16,
@@ -102,9 +102,9 @@ pub const io_uring_probe = struct {
     ops: []io_uring_probe_op,
 };
 
-pub const io_uring_restriction = struct {
+pub const io_uring_restriction = extern struct {
     opcode: u16,
-    _: union {
+    _: extern union {
         register_op: u8, // ioring_restriction_register_op
         sqe_op: u8, // ioring_restriction_sqe_op
         sqe_flags: u8, // ioring_restriction_sqe_flags_*
@@ -113,27 +113,27 @@ pub const io_uring_restriction = struct {
     resv2: [3]u32,
 };
 
-pub const io_uring_buf = struct {
+pub const io_uring_buf = extern struct {
     addr: u64,
     len: u32,
     bid: u16,
     resv: u16,
 };
 
-pub const io_uring_getevents_arg = struct {
+pub const io_uring_getevents_arg = extern struct {
     sigmask: u64,
     sigmask_sz: u32,
     pad: u32,
     ts: u64,
 };
 
-pub const __kernel_timespec = struct {
+pub const __kernel_timespec = extern struct {
     tv_sec: c_longlong, // seconds
     tv_nsec: c_longlong, // nanoseconds
 };
 
 /// argument for ioring_register_sync_cancel
-pub const io_uring_sync_cancel_reg = struct {
+pub const io_uring_sync_cancel_reg = extern struct {
     addr: u64,
     fd: i32,
     flags: u32,
@@ -145,24 +145,24 @@ pub const io_uring_sync_cancel_reg = struct {
 
 /// argument for ioring_register_file_alloc_range
 /// the range is specified as [off, off + len)
-pub const io_uring_file_index_range = struct {
+pub const io_uring_file_index_range = extern struct {
     off: u32,
     len: u32,
     resv: u64,
 };
 
-pub const io_uring_recvmsg_out = struct {
+pub const io_uring_recvmsg_out = extern struct {
     namelen: u32,
     controllen: u32,
     payloadlen: u32,
     flags: u32,
 };
 
-pub const io_uring_buf_ring = struct {
-    union {
+pub const io_uring_buf_ring = extern struct {
+    _: extern union {
         /// to avoid spilling into more pages than we need to, the
         /// ring tail is overlaid with the io_uring_buf->resv field.
-        _: struct {
+        __: extern struct {
             resv1: u64,
             resv2: u32,
             resv3: u16,
@@ -173,7 +173,7 @@ pub const io_uring_buf_ring = struct {
 };
 
 /// argument for ioring_(un)register_pbuf_ring
-pub const io_uring_buf_reg = struct {
+pub const io_uring_buf_reg = extern struct {
     ring_addr: u64,
     ring_entries: 32,
     bgid: u16,
@@ -182,14 +182,14 @@ pub const io_uring_buf_reg = struct {
 };
 
 /// argument for ioring_register_pbuf_status
-pub const io_uring_buf_status = struct {
+pub const io_uring_buf_status = extern struct {
     buf_group: u32, // input
     head: u32, // output
     resv: [8]u32,
 };
 
 /// argument for ioring_(un)register_napi
-pub const io_uring_napi = struct {
+pub const io_uring_napi = extern struct {
     busy_poll_to: u32,
     prefer_busy_poll: u8,
     pad: [3]u8,
@@ -289,7 +289,7 @@ pub const io_uring_enter_flags = extern struct {
     _: u59 = 0,
 };
 
-/// io submission data structure (submission queue entry)
+/// io submission data extern structure (submission queue entry)
 pub const io_uring_sqe = extern struct {
     opcode: u8, // type of operation for this sqe
     flags: packed struct {
@@ -481,7 +481,7 @@ pub const ioring_notif_usage_zc_copied = packed struct {
     usage_zc_copied: bool = false,
 };
 
-/// io completion data structure (completion queue entry)
+/// io completion data extern structure (completion queue entry)
 pub const io_uring_cqe = extern struct {
     user_data: u64, // sqe->data submission passed back
     res: i32, // result code for this event
