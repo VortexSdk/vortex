@@ -10,10 +10,6 @@ const MmapMemProt = enum {
 /// An interface for mapping files to memory.
 const Mmapf = @This();
 
-fn unlikely() void {
-    @setCold(true);
-}
-
 mem: []align(os.page_size) u8,
 
 pub const MmapfInitError = error{
@@ -37,22 +33,16 @@ pub fn init(comptime kind: MmapMemProt, path: [*:0]const u8) MmapfInitError!Mmap
             },
             0,
         });
-        if (os.linux.get_errno(opensys_res) != .SUCCESS) {
-            return error.FailedToOpenTheFile;
-        }
+
+        if (os.linux.get_errno(opensys_res) != .SUCCESS) return error.FailedToOpenTheFile;
 
         var fstatbuf: os.linux.stat = undefined;
         const fstatsys_res = os.linux.syscall(.fstat, .{
             opensys_res, &fstatbuf,
         });
-        if (os.linux.get_errno(fstatsys_res) != .SUCCESS) {
-            return error.FailedToReadTheMetadata;
-        }
 
-        if (fstatbuf.size == 0) {
-            unlikely();
-            return error.EmptyFile;
-        }
+        if (os.linux.get_errno(fstatsys_res) != .SUCCESS) return error.FailedToReadTheMetadata;
+        if (fstatbuf.size == 0) return error.EmptyFile;
 
         const mmapsys_res = os.linux.syscall(.mmap, .{
             0,

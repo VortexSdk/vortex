@@ -13,8 +13,8 @@ pub fn add_tests(
         const new_tests = b.addTest(.{
             .target = target,
             .optimize = optimize,
-            .name = std.fmt.comptimePrint("{s}_tests", .{name}),
-            .root_source_file = b.path(std.fmt.comptimePrint("tests/{s}.zig", .{name})),
+            .name = std.fmt.comptimePrint("{s}_{s}_tests", .{ name[0], name[1] }),
+            .root_source_file = b.path(std.fmt.comptimePrint("tests/{s}/{s}.zig", .{ name[0], name[1] })),
         });
         new_tests.root_module.addImport("vortex", vortex);
         tests_step.dependOn(&b.addRunArtifact(new_tests).step);
@@ -24,8 +24,8 @@ pub fn add_tests(
         const new_tests = b.addExecutable(.{
             .target = target,
             .optimize = optimize,
-            .name = std.fmt.comptimePrint("{s}_tests", .{name}),
-            .root_source_file = b.path(std.fmt.comptimePrint("tests/{s}.zig", .{name})),
+            .name = std.fmt.comptimePrint("{s}_{s}_tests", .{ name[0], name[1] }),
+            .root_source_file = b.path(std.fmt.comptimePrint("tests/{s}/{s}.zig", .{ name[0], name[1] })),
         });
         new_tests.root_module.addImport("vortex", vortex);
         tests_step.dependOn(&b.addRunArtifact(new_tests).step);
@@ -47,14 +47,14 @@ pub fn build(b: *std.Build) !void {
         optimize,
         vortex,
         tests_step,
-        .{ "mem", "math" },
+        .{ .{ "mem", "mem" }, .{ "math", "math" } },
         .{
-            "start0-u8",
-            "start0-void",
-            "start1-u8",
-            "start1-void",
-            "start2-u8",
-            "start2-void",
+            .{ "start", "start0-u8" },
+            .{ "start", "start0-void" },
+            .{ "start", "start1-u8" },
+            .{ "start", "start1-void" },
+            .{ "start", "start2-u8" },
+            .{ "start", "start2-void" },
         },
     );
 }
