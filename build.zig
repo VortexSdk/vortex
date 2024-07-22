@@ -47,7 +47,7 @@ pub fn build(b: *std.Build) !void {
         optimize,
         vortex,
         tests_step,
-        .{ .{ "mem", "mem" }, .{ "math", "math" } },
+        .{ .{ "mem", "mem" }, .{ "math", "math" }, .{ "io_uring", "uring" } },
         .{
             .{ "start", "start0-u8" },
             .{ "start", "start0-void" },

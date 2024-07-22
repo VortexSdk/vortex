@@ -1,10 +1,9 @@
 const builtin = @import("builtin");
 const arch_syscall = if (builtin.cpu.arch == .x86_64) @import("x86_64.zig") else @import("aarch64.zig");
 
-pub const syscall = arch_syscall.syscall;
 pub const SyscallType = arch_syscall.SyscallType;
 
-pub const Error = enum(u16) {
+pub const Errorno = enum(u16) {
     /// No error occurred.
     /// Same code used for `NSROK`.
     SUCCESS = 0,
@@ -318,6 +317,317 @@ pub const Error = enum(u16) {
     _,
 };
 
+pub const Error = error{
+    /// Operation not permitted
+    PERM,
+    /// No such file or directory
+    NOENT,
+    /// No such process
+    SRCH,
+    /// Interrupted system call
+    INTR,
+    /// I/O error
+    IO,
+    /// No such device or address
+    NXIO,
+    /// Arg list too long
+    BIG,
+    /// Exec format error
+    NOEXEC,
+    /// Bad file number
+    BADF,
+    /// No child processes
+    CHILD,
+    /// Try again
+    /// Also means: WOULDBLOCK: operation would block
+    AGAIN,
+    /// Out of memory
+    NOMEM,
+    /// Permission denied
+    ACCES,
+    /// Bad address
+    FAULT,
+    /// Block device required
+    NOTBLK,
+    /// Device or resource busy
+    BUSY,
+    /// File exists
+    EXIST,
+    /// Cross-device link
+    XDEV,
+    /// No such device
+    NODEV,
+    /// Not a directory
+    NOTDIR,
+    /// Is a directory
+    ISDIR,
+    /// Invalid argument
+    INVAL,
+    /// File table overflow
+    NFILE,
+    /// Too many open files
+    MFILE,
+    /// Not a typewriter
+    NOTTY,
+    /// Text file busy
+    TXTBSY,
+    /// File too large
+    FBIG,
+    /// No space left on device
+    NOSPC,
+    /// Illegal seek
+    SPIPE,
+    /// Read-only file system
+    ROFS,
+    /// Too many links
+    MLINK,
+    /// Broken pipe
+    PIPE,
+    /// Math argument out of domain of func
+    DOM,
+    /// Math result not representable
+    RANGE,
+    /// Resource deadlock would occur
+    DEADLK,
+    /// File name too long
+    NAMETOOLONG,
+    /// No record locks available
+    NOLCK,
+    /// Function not implemented
+    NOSYS,
+    /// Directory not empty
+    NOTEMPTY,
+    /// Too many symbolic links encountered
+    LOOP,
+    /// No message of desired type
+    NOMSG,
+    /// Identifier removed
+    IDRM,
+    /// Channel number out of range
+    CHRNG,
+    /// Level 2 not synchronized
+    L2NSYNC,
+    /// Level 3 halted
+    L3HLT,
+    /// Level 4 reset
+    L3RST,
+    /// Link number out of range
+    LNRNG,
+    /// Protocol driver not attached
+    UNATCH,
+    /// No CSI structure available
+    NOCSI,
+    /// Level 2 halted
+    Level,
+    /// Invalid exchange
+    BADE,
+    /// Invalid request descriptor
+    BADR,
+    /// Exchange full
+    XFULL,
+    /// No anode
+    NOANO,
+    /// Invalid request code
+    BADRQC,
+    /// Invalid slot
+    BADSLT,
+    /// Bad font file format
+    BFONT,
+    /// Device not a stream
+    NOSTR,
+    /// No data available
+    NODATA,
+    /// Timer expired
+    TIME,
+    /// Out of streams resources
+    NOSR,
+    /// Machine is not on the network
+    NONET,
+    /// Package not installed
+    NOPKG,
+    /// Object is remote
+    REMOTE,
+    /// Link has been severed
+    NOLINK,
+    /// Advertise error
+    ADV,
+    /// Srmount error
+    SRMNT,
+    /// Communication error on send
+    COMM,
+    /// Protocol error
+    PROTO,
+    /// Multihop attempted
+    MULTIHOP,
+    /// RFS specific error
+    DOTDOT,
+    /// Not a data message
+    BADMSG,
+    /// Value too large for defined data type
+    OVERFLOW,
+    /// Name not unique on network
+    NOTUNIQ,
+    /// File descriptor in bad state
+    BADFD,
+    /// Remote address changed
+    REMCHG,
+    /// Can not access a needed shared library
+    LIBACC,
+    /// Accessing a corrupted shared library
+    LIBBAD,
+    /// .lib section in a.out corrupted
+    LIBSCN,
+    /// Attempting to link in too many shared libraries
+    LIBMAX,
+    /// Cannot exec a shared library directly
+    LIBEXEC,
+    /// Illegal byte sequence
+    ILSEQ,
+    /// Interrupted system call should be restarted
+    RESTART,
+    /// Streams pipe error
+    STRPIPE,
+    /// Too many users
+    USERS,
+    /// Socket operation on non-socket
+    NOTSOCK,
+    /// Destination address required
+    DESTADDRREQ,
+    /// Message too long
+    MSGSIZE,
+    /// Protocol wrong type for socket
+    PROTOTYPE,
+    /// Protocol not available
+    NOPROTOOPT,
+    /// Protocol not supported
+    PROTONOSUPPORT,
+    /// Socket type not supported
+    SOCKTNOSUPPORT,
+    /// Operation not supported on transport endpoint
+    /// This code also means `NOTSUP`.
+    OPNOTSUPP,
+    /// Protocol family not supported
+    PFNOSUPPORT,
+    /// Address family not supported by protocol
+    AFNOSUPPORT,
+    /// Address already in use
+    ADDRINUSE,
+    /// Cannot assign requested address
+    ADDRNOTAVAIL,
+    /// Network is down
+    NETDOWN,
+    /// Network is unreachable
+    NETUNREACH,
+    /// Network dropped connection because of reset
+    NETRESET,
+    /// Software caused connection abort
+    CONNABORTED,
+    /// Connection reset by peer
+    CONNRESET,
+    /// No buffer space available
+    NOBUFS,
+    /// Transport endpoint is already connected
+    ISCONN,
+    /// Transport endpoint is not connected
+    NOTCONN,
+    /// Cannot send after transport endpoint shutdown
+    SHUTDOWN,
+    /// Too many references: cannot splice
+    TOOMANYREFS,
+    /// Connection timed out
+    TIMEDOUT,
+    /// Connection refused
+    CONNREFUSED,
+    /// Host is down
+    HOSTDOWN,
+    /// No route to host
+    HOSTUNREACH,
+    /// Operation already in progress
+    ALREADY,
+    /// Operation now in progress
+    INPROGRESS,
+    /// Stale NFS file handle
+    STALE,
+    /// Structure needs cleaning
+    UCLEAN,
+    /// Not a XENIX named type file
+    NOTNAM,
+    /// No XENIX semaphores available
+    NAVAIL,
+    /// Is a named type file
+    ISNAM,
+    /// Remote I/O error
+    REMOTEIO,
+    /// Quota exceeded
+    DQUOT,
+    /// No medium found
+    NOMEDIUM,
+    /// Wrong medium type
+    MEDIUMTYPE,
+    /// Operation canceled
+    CANCELED,
+    /// Required key not available
+    NOKEY,
+    /// Key has expired
+    KEYEXPIRED,
+    /// Key has been revoked
+    KEYREVOKED,
+    /// Key was rejected by service
+    KEYREJECTED,
+
+    // for robust mutexes
+
+    /// Owner died
+    OWNERDEAD,
+    /// State not recoverable
+    NOTRECOVERABLE,
+    /// Operation not possible due to RF-kill
+    RFKILL,
+    /// Memory page has hardware error
+    HWPOISON,
+
+    // nameserver query return codes
+
+    /// DNS server returned answer with no data
+    NSRNODATA,
+    /// DNS server claims query was misformatted
+    NSRFORMERR,
+    /// DNS server returned general failure
+    NSRSERVFAIL,
+    /// Domain name not found
+    NSRNOTFOUND,
+    /// DNS server does not implement requested operation
+    NSRNOTIMP,
+    /// DNS server refused query
+    NSRREFUSED,
+    /// Misformatted DNS query
+    NSRBADQUERY,
+    /// Misformatted domain name
+    NSRBADNAME,
+    /// Unsupported address family
+    NSRBADFAMILY,
+    /// Misformatted DNS reply
+    NSRBADRESP,
+    /// Could not contact DNS servers
+    NSRCONNREFUSED,
+    /// Timeout while contacting DNS servers
+    NSRTIMEOUT,
+    /// End of file
+    NSROF,
+    /// Error reading file
+    NSRFILE,
+    /// Out of memory
+    NSRNOMEM,
+    /// Application terminated lookup
+    NSRDESTRUCTION,
+    /// Domain name is too long
+    NSRQUERYDOMAINTOOLONG,
+    /// Domain name is too long
+    NSRCNAMELOOP,
+
+    _,
+};
+
 pub const MAP = struct {
     pub usingnamespace arch_syscall.MAP;
 
@@ -416,10 +726,21 @@ pub const stat = extern struct {
 };
 
 /// Get the errno from a syscall return value. Zero means no error.
-pub fn get_errno(r: usize) Error {
+pub fn get_errno(r: usize) Errorno {
     @setRuntimeSafety(false);
 
     const signed_r = @as(isize, @bitCast(r));
     const int = if (signed_r > -4096 and signed_r < 0) -signed_r else 0;
-    return @as(Error, @enumFromInt(int));
+    return @as(Errorno, @enumFromInt(int));
+}
+
+/// Performs a linux syscall.
+pub fn syscall(syscall_type: SyscallType, args: anytype) Error!usize {
+    @setRuntimeSafety(false);
+
+    const res = arch_syscall.syscall(syscall_type, args);
+    const errno = get_errno(res);
+
+    if (errno != .SUCCESS) return @errorCast(@errorFromInt(@intFromEnum(errno) - 1));
+    return res;
 }

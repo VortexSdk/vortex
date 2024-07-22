@@ -1,6 +1,6 @@
 /// A wrapper around syscalls that uses the right module for the OS and CPU kind
 const builtin = @import("builtin");
-pub const syscall = @import("syscall/syscall.zig");
+pub const linux = @import("linux/linux.zig");
 pub const BufPrinter = @import("printer.zig").BufPrinter;
 
 /// Page size based on the OS.
@@ -19,9 +19,9 @@ pub fn exit(status: u8) void {
     @setRuntimeSafety(false);
 
     if (builtin.os.tag == .linux) {
-        _ = syscall.syscall(.exit_group, .{
+        _ = linux.syscall(.exit_group, .{
             @as(usize, @bitCast(@as(isize, status))),
-        });
+        }) catch {};
     }
 }
 
@@ -30,10 +30,10 @@ pub fn print(buf: []const u8) void {
     @setRuntimeSafety(false);
 
     if (builtin.os.tag == .linux) {
-        _ = syscall.syscall(.write, .{
+        _ = linux.syscall(.write, .{
             0,
             buf.ptr,
             buf.len,
-        });
+        }) catch {};
     }
 }

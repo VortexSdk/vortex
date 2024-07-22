@@ -32,17 +32,14 @@ pub fn init(comptime kind: MmapMemProt, path: [*:0]const u8) MmapfInitError!Mmap
                 .ReadAndWrite => os.linux.O.RDWR,
             },
             0,
-        });
-
-        if (os.linux.get_errno(opensys_res) != .SUCCESS) return error.FailedToOpenTheFile;
+        }) catch return MmapfInitError.FailedToOpenTheFile;
 
         var fstatbuf: os.linux.stat = undefined;
-        const fstatsys_res = os.linux.syscall(.fstat, .{
+        _ = os.linux.syscall(.fstat, .{
             opensys_res, &fstatbuf,
-        });
+        }) catch return MmapfInitError.FailedToReadTheMetadata;
 
-        if (os.linux.get_errno(fstatsys_res) != .SUCCESS) return error.FailedToReadTheMetadata;
-        if (fstatbuf.size == 0) return error.EmptyFile;
+        if (fstatbuf.size == 0) return MmapfInitError.EmptyFile;
 
         const mmapsys_res = os.linux.syscall(.mmap, .{
             0,
@@ -55,16 +52,11 @@ pub fn init(comptime kind: MmapMemProt, path: [*:0]const u8) MmapfInitError!Mmap
             os.linux.MAP.PRIVATE,
             opensys_res,
             0,
-        });
+        }) catch MmapfInitError.FailedToMapTheFileToMemory;
 
-        if (os.linux.get_errno(mmapsys_res) == .SUCCESS) {
-            var ptr: [*]align(os.page_size) u8 = @ptrFromInt(mmapsys_res);
-            return Mmapf{ .mem = ptr[0..@intCast(fstatbuf.size)] };
-        }
-
-        return error.FailedToMapTheFileToMemory;
+        var ptr: [*]align(os.page_size) u8 = @ptrFromInt(mmapsys_res);
+        return Mmapf{ .mem = ptr[0..@intCast(fstatbuf.size)] };
     }
-    @compileError("Unsupported OS/CPU!");
 }
 
 /// Unmaps a memory-mapped file

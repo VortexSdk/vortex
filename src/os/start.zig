@@ -21,7 +21,6 @@ pub fn Start(comptime entry: anytype) type {
             };
         }
     }
-    @compileError("Unsupported OS/CPU!");
 }
 
 pub const _start = Start(start)._start;
