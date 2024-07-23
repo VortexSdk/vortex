@@ -1,6 +1,14 @@
 const builtin = @import("builtin");
 const arch_syscall = if (builtin.cpu.arch == .x86_64) @import("x86_64.zig") else @import("aarch64.zig");
 
+pub const Uio = @import("uapi/uio.zig");
+pub const Mman = @import("uapi/mman.zig");
+pub const Fnctl = @import("uapi/fnctl.zig");
+pub const Statx = @import("uapi/statx.zig");
+pub const Signal = @import("uapi/signal.zig");
+pub const Socket = @import("uapi/socket.zig");
+pub const IoUring = @import("uapi/io_uring.zig");
+
 pub const SyscallType = arch_syscall.SyscallType;
 
 pub const Errorno = enum(u16) {
@@ -626,103 +634,6 @@ pub const Error = error{
     NSRCNAMELOOP,
 
     _,
-};
-
-pub const MAP = struct {
-    pub usingnamespace arch_syscall.MAP;
-
-    /// Share changes
-    pub const SHARED = 0x01;
-    /// Changes are private
-    pub const PRIVATE = 0x02;
-    /// share + validate extension flags
-    pub const SHARED_VALIDATE = 0x03;
-    /// Mask for type of mapping
-    pub const TYPE = 0x0f;
-    /// Interpret addr exactly
-    pub const FIXED = 0x10;
-    /// don't use a file
-    pub const ANONYMOUS = 0x20;
-    // MAP_ 0x0100 - 0x4000 flags are per architecture
-    /// populate (prefault) pagetables
-    pub const POPULATE = 0x8000;
-    /// do not block on IO
-    pub const NONBLOCK = 0x10000;
-    /// give out an address that is best suited for process/thread stacks
-    pub const STACK = 0x20000;
-    /// create a huge page mapping
-    pub const HUGETLB = 0x40000;
-    /// perform synchronous page faults for the mapping
-    pub const SYNC = 0x80000;
-    /// MAP_FIXED which doesn't unmap underlying mapping
-    pub const FIXED_NOREPLACE = 0x100000;
-    /// For anonymous mmap, memory could be uninitialized
-    pub const UNINITIALIZED = 0x4000000;
-};
-
-pub const O = struct {
-    pub usingnamespace arch_syscall.O;
-
-    /// read only
-    pub const RDONLY = 0o0;
-    /// write only
-    pub const WRONLY = 0o1;
-    /// read and write
-    pub const RDWR = 0o2;
-};
-
-pub const PROT = struct {
-    /// page can not be accessed
-    pub const NONE = 0x0;
-    /// page can be read
-    pub const READ = 0x1;
-    /// page can be written
-    pub const WRITE = 0x2;
-    /// page can be executed
-    pub const EXEC = 0x4;
-    /// page may be used for atomic ops
-    pub const SEM = 0x8;
-    /// mprotect flag: extend change to start of growsdown vma
-    pub const GROWSDOWN = 0x01000000;
-    /// mprotect flag: extend change to end of growsup vma
-    pub const GROWSUP = 0x02000000;
-};
-
-pub const pid_t = i32;
-pub const fd_t = i32;
-pub const uid_t = u32;
-pub const gid_t = u32;
-pub const clock_t = isize;
-pub const blksize_t = i32;
-pub const nlink_t = u32;
-pub const time_t = isize;
-pub const mode_t = u32;
-pub const off_t = isize;
-pub const ino_t = usize;
-pub const dev_t = usize;
-pub const blkcnt_t = isize;
-pub const timespec = extern struct {
-    tv_sec: isize,
-    tv_nsec: isize,
-};
-
-pub const stat = extern struct {
-    dev: dev_t,
-    __dev_padding: u32,
-    __ino_truncated: u32,
-    mode: mode_t,
-    nlink: nlink_t,
-    uid: uid_t,
-    gid: gid_t,
-    rdev: dev_t,
-    __rdev_padding: u32,
-    size: off_t,
-    blksize: blksize_t,
-    blocks: blkcnt_t,
-    atim: timespec,
-    mtim: timespec,
-    ctim: timespec,
-    ino: ino_t,
 };
 
 /// Get the errno from a syscall return value. Zero means no error.

@@ -1,0 +1,4 @@
+[submodule "linux"]
+    shallow = true
+	path = src/os/linux
+	url = https://github.com/torvalds/linux
