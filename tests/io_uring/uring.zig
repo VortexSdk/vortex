@@ -1,7 +1,11 @@
 const std = @import("std");
 const vortex = @import("vortex");
 
-const io_uring = vortex.io_uring;
-const testing = std.testing;
+pub usingnamespace vortex.start;
 
-test "io_uring_enter" {}
+const linux = vortex.os.linux;
+
+pub fn main(_: [][*:0]u8) !void {
+    var uring = try vortex.IoUring.init(8, .{}, 0, 0);
+    defer uring.deinit();
+}

@@ -36,19 +36,45 @@ pub fn start() callconv(.C) noreturn {
         break :blk_1 len;
     };
 
-    const main_params = switch (@typeInfo(@TypeOf(root.main)).Fn.params.len) {
+    const main_info_fn = @typeInfo(@TypeOf(root.main)).Fn;
+    const main_params = switch (main_info_fn.params.len) {
         0 => .{},
         1 => .{args[0..args_len]},
         2 => .{ args[0..args_len], vars[0..vars_len] },
         else => @compileError("Invalid number of arguments for the main function!"),
     };
-    switch (@typeInfo(@TypeOf(root.main)).Fn.return_type.?) {
+
+    var exit_status: u8 = 0;
+    const return_type = main_info_fn.return_type.?;
+    const return_type_info = @typeInfo(return_type);
+    switch (return_type) {
         void => @call(.auto, root.main, main_params),
-        u8 => os.exit(@call(.auto, root.main, main_params)),
-        else => @compileError("Invalid return type for the main function!"),
+        u8 => exit_status = @call(.auto, root.main, main_params),
+        else => {
+            if (return_type_info != .ErrorUnion) @compileError("Invalid return type for the main function!");
+
+            switch (return_type_info.ErrorUnion.payload) {
+                void => {
+                    if (@call(.auto, root.main, main_params)) {} else |e| {
+                        // @errorReturnTrace()
+                        exit_status = @truncate(@intFromError(e));
+                    }
+                },
+                u8 => {
+                    if (@call(.auto, root.main, main_params)) |r| {
+                        exit_status = r;
+                    } else |e| {
+                        // @errorReturnTrace()
+                        exit_status = @truncate(@intFromError(e));
+                    }
+                },
+
+                else => @compileError("Invalid return type for the main function!"),
+            }
+        },
     }
 
-    os.exit(0);
+    os.exit(exit_status);
     unreachable;
 }
 
