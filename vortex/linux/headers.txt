@@ -1,0 +1,24 @@
+# A list of required uapi headers. This file should always have an empty line in the end.
+bitsperlong.h
+futex.h
+hugetlb_encode.h
+int-ll64.h
+mman-common.h
+mman.h
+posix_types.h
+posix_types_64.h
+sched.h
+stddef.h
+types.h
+io_uring.h
+fs.h
+time_types.h
+mount.h
+limits.h
+ioctl.h
+fscrypt.h
+socket.h
+in.h
+un.h
+unistd_64.h
+

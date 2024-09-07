@@ -1,0 +1,6 @@
+FormatStyle: true
+WarningsAsErrors: '*'
+InheritParentConfig: false
+HeaderFileExtensions: ['h','hpp']
+ImplementationFileExtensions: ['c','cpp']
+Checks: 'linuxkernel-*, clang-analyzer-*, llvm-*, performance-*, modernize-*, misc-*, -llvm-header-guard, -clang-diagnostic-unused-template, -modernize-avoid-c-arrays, -misc-header-include-cycle, -misc-include-cleaner, -misc-use-anonymous-namespace'

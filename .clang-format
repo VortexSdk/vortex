@@ -1,0 +1,62 @@
+AlignAfterOpenBracket: BlockIndent
+AlignArrayOfStructures: Left
+AlignConsecutiveAssignments: AcrossEmptyLinesAndComments
+AlignEscapedNewlines: Right
+AlignOperands: AlignAfterOperator
+AllowShortBlocksOnASingleLine: Empty
+AllowShortCompoundRequirementOnASingleLine: True
+AllowShortEnumsOnASingleLine: False
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortLoopsOnASingleLine: True
+AlwaysBreakBeforeMultilineStrings: False
+BasedOnStyle: LLVM
+BinPackArguments: True
+BinPackParameters: True
+BitFieldColonSpacing: After
+BreakAdjacentStringLiterals: True
+BreakAfterAttributes: Always
+BreakBeforeBinaryOperators: None
+BreakBeforeBraces: Attach
+BreakBeforeInlineASMColon: OnlyMultiline
+BreakBeforeTernaryOperators: True
+BreakStringLiterals: True
+ColumnLimit: 100
+Cpp11BracedListStyle: True
+DerivePointerAlignment: True
+IncludeBlocks: Merge
+IndentPPDirectives: BeforeHash
+IndentWidth: 4
+InsertNewlineAtEOF: True
+LineEnding: LF
+ReferenceAlignment: Right
+ReflowComments: True
+SortIncludes: CaseInsensitive
+SpaceAroundPointerQualifiers: After
+SpaceBeforeAssignmentOperators: True
+SpaceBeforeCaseColon: True
+SpaceBeforeSquareBrackets: True
+SpaceInEmptyBlock: False
+SpacesInContainerLiterals: False
+
+SpacesInLineCommentPrefix:
+  Minimum: 1
+AlignTrailingComments:
+  Kind: Always
+  OverEmptyLines: 2
+SpaceBeforeParensOptions:
+  AfterControlStatements: False
+  AfterFunctionDefinitionName: False
+AlignConsecutiveMacros:
+  Enabled: True
+  AcrossEmptyLines: True
+  AcrossComments: True
+BraceWrapping:
+  AfterEnum: True
+  AfterStruct: False
+  SplitEmptyFunction: False
+AlignConsecutiveShortCaseStatements:
+  Enabled: True
+  AcrossEmptyLines: True
+  AcrossComments: True
+  AlignCaseColons: False

@@ -1,0 +1,7 @@
+Index:
+  Background: Build
+
+Diagnostics:
+  UnusedIncludes: None
+  MissingIncludes: None
+  Suppress: [-Wundefined-internal, -Wunused-function, -Wunused-template, -Wunknown-pragmas]
