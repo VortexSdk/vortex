@@ -6,7 +6,9 @@ readonly PROJECT_NAME="vortex"
 readonly BUILD_DIR="build"
 readonly OUTPUT="$BUILD_DIR/$PROJECT_NAME"
 readonly INCLUDES=("-I." "-Ibuild/uapi")
-readonly BUILD_FLAGS=("-ffreestanding" "-fno-builtin" "-nostdlib" "-nostdlib++" "-Wno-missing-noreturn" "-std=c++23" "-Weverything" "-Werror" "-fno-exceptions" "-Wno-c++98-compat" "-Wno-c++98-compat-pedantic" "-Wno-missing-prototypes" "-Wno-reserved-identifier" "-Wno-unsafe-buffer-usage" "-Wno-unused-function" "-fno-signed-char" "-fno-use-cxa-atexit" "-fno-rtti" "-fno-knr-functions" "-nostdinc" "-nostdinc++" "-nostdlibinc")
+readonly BUILD_FLAGS=("-ffreestanding" "-fno-builtin" "-nostdlib" "-nostdlib++" "-Wno-missing-noreturn" "-std=c++23" "-Weverything" "-Werror" "-fno-exceptions" "-Wno-c++98-compat" "-Wno-c++98-compat-pedantic" "-Wno-missing-prototypes" "-Wno-reserved-identifier" "-Wno-unsafe-buffer-usage" "-Wno-unused-function" "-Wno-zero-as-null-pointer-constant" "-Wno-extern-initializer" "-Wno-missing-variable-declarations" "-fno-signed-char" "-fno-use-cxa-atexit" "-fno-knr-functions" "-fdata-sections" "-ffunction-sections" "-nostdinc" "-nostdinc++" "-nostdlibinc" "-Wl,--gc-sections")
+
+readonly ALL_FILES=$(find . -type f -name "*.*pp" | grep -v "build")
 
 # Utility function to print and execute commands.
 exec_n_print() {
@@ -61,13 +63,13 @@ build_and_run_tests() {
     local build_flags=("${BUILD_FLAGS[@]}")
     case "$optimization_level" in
         "debug")
-            build_flags+=("-O0" "-g")
+            build_flags+=("-O0" "-g" "-fsanitize=undefined,nullability,float-divide-by-zero,unsigned-integer-overflow,implicit-conversion,local-bounds" "-lubsan" "-lc" "-lgcc_s" "-lstdc++")
             ;;
         "release")
-            build_flags+=("-Ofast" "-flto")
+            build_flags+=("-O3" "-flto" "-fno-rtti" "-static")
             ;;
         "small")
-            build_flags+=("-Os" "-flto")
+            build_flags+=("-Oz" "-flto" "-fno-rtti" "-static")
             ;;
         "")
             build_flags+=("-O0")  # Default to debug if no optimization level is specified.
@@ -84,7 +86,7 @@ build_and_run_tests() {
         # Compile and run the specified tests, creating unique output files for each.
         for file in "${test_files[@]}"; do
             local test_output="$BUILD_DIR/$(basename "$file" .cpp)_test"
-            exec_n_print clang++ "$file" -o "$test_output" "${build_flags[@]}" "${INCLUDES[@]}"
+            exec_n_print clang++ "$file" -o "$test_output" "${INCLUDES[@]}" "${build_flags[@]}"
             "$test_output"
         done
     else
@@ -100,7 +102,7 @@ build_and_run_tests() {
         # Compile and run all tests, creating unique output files for each.
         for file in $test_files_found; do
             local test_output="$BUILD_DIR/$(basename "$file" .cpp)_test"
-            exec_n_print clang++ "$file" -o "$test_output" "${build_flags[@]}" "${INCLUDES[@]}"
+            exec_n_print clang++ "$file" -o "$test_output" "${INCLUDES[@]}" "${build_flags[@]}"
             exec_n_print "$test_output"
         done
     fi
@@ -113,10 +115,25 @@ build_and_run_tests() {
     fi
 }
 
+delete_array_element() {
+    local word=$1      # the element to search for & delete
+    local aryref="$2[@]" # a necessary step since '${!$2[@]}' is a syntax error
+    local arycopy=("${!aryref}") # create a copy of the input array
+    local status=1
+
+    for (( i = ${#arycopy[@]} - 1; i >= 0; i-- )); do # iterate over indices backwards
+        elmt=${arycopy[$i]}
+        [[ $elmt == $word ]] && unset "$2[$i]" && status=0 # unset matching elmts in orig. ary
+    done
+
+    return $status # return 0 if something was deleted; 1 if not
+}
 
 # Build a compile_commands.json for tools like clangd.
 build_command_db() {
     local build_flags=("${BUILD_FLAGS[@]}" "-O0")
+
+    delete_array_element "-Wl,--gc-sections" build_flags
 
     mkdir -p "$BUILD_DIR/commands_db" "$BUILD_DIR/tmp"
 
@@ -152,13 +169,13 @@ main() {
             exec vortex/linux/patch.sh
             ;;
         "lint")
-            clang-tidy **/*.hpp **/*.cpp
+            clang-tidy $ALL_FILES
             ;;
         "fmt")
-            clang-format -i **/*.hpp **/*.cpp
+            clang-format -i $ALL_FILES
             ;;
         "fmt-check")
-            clang-format --dry-run --Werror **/*.hpp **/*.cpp
+            clang-format --dry-run --Werror $ALL_FILES
             ;;
         *)
             echo "Usage: $0 {test|clean|command_db|uapi} [options]" >&2

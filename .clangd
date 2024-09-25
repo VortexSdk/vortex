@@ -1,6 +1,11 @@
 Index:
   Background: Build
 
+CompileFlags:                    
+  Add: []             
+  Remove: -W*                     
+  Compiler: clang++ 
+
 Diagnostics:
   UnusedIncludes: None
   MissingIncludes: None

@@ -1,7 +1,5 @@
 #pragma once
 
-#pragma once
-
 #ifdef __MINGW32__
     #define WRDSIZE 32
 #else

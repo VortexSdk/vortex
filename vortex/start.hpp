@@ -1,13 +1,13 @@
 #pragma once
 
-#include "asm/unistd_64.h"
-#include "numbers.hpp"
 #include "vortex.hpp"
-#include "vortex/linux/syscall.hpp"
+#include <asm/unistd_64.h>
 
-static auto main() -> u8; // NOLINT(clang-diagnostic-undefined-internal)
+static u8 main(); // NOLINT(clang-diagnostic-undefined-internal)
 
-static usize stack = 0;
+extern void *__dso_handle = static_cast<void *>(0);
+
+static usize stack        = 0;
 __attribute((noreturn)) void inline start() {
     u8 const ret = main();
 

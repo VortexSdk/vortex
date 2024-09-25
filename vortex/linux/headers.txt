@@ -21,4 +21,6 @@ socket.h
 in.h
 un.h
 unistd_64.h
+errno.h
+errno-base.h
 
