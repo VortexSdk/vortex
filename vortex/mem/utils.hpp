@@ -1,41 +1,28 @@
 #pragma once
 
+#include "../diagnostics.hpp"
+#include "../linux/syscall/syscall.hpp"
+#include "../metap/metap.hpp"
 #include "../numbers.hpp"
+#include "musl.hpp"
 
 #define PAGE_SIZE 4096
+#define U32_0     static_cast<u32>(0)
+#define USIZE_0   static_cast<usize>(0)
 #define NULL      (reinterpret_cast<void *>(0))
-static void *null_ptr = reinterpret_cast<void *>(0);
 
-static void *memcpy(void *__restrict dest, void *__restrict src, usize n) {
-    for (usize i = 0; i < n; i++) {
-        (reinterpret_cast<char *>(dest)) [i] = (reinterpret_cast<char *>(src)) [i];
-    }
-
-    return reinterpret_cast<void *>((reinterpret_cast<char *>(dest) + n));
+template <typename T> static T *null() {
+    return reinterpret_cast<T *>(NULL);
 }
 
-static usize strlen(const char *const s) {
-    usize i = 0;
-    for (;; i++) {
-        if (s [i] == '\0') return i;
-    }
+// A zero-sized struct that represents nothing.
+struct None {};
+
+template <typename T> static T zeroed() {
+    T m;
+    memset(reinterpret_cast<char *>(&m), 0, sizeof(T));
+
+    return m;
 }
 
-template <typename T> struct Slice {
-    T *ptr;
-    usize len;
-
-    Slice()  = delete;
-    ~Slice() = default;
-    Slice(T *_ptr, usize _len) : ptr(_ptr), len(_len) {}
-
-    bool is_empty(this Slice &self) {
-        return self.ptr == NULL;
-    }
-
-    T *get(this Slice &self, usize i) {
-        if (i >= self.len) return NULL;
-
-        return self.ptr [i];
-    }
-};
+#include "Slice.hpp"

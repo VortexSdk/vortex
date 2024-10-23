@@ -1,15 +1,22 @@
 #pragma once
 
-#include "../numbers.hpp"
+#include "../../diagnostics.hpp"
+#include "../../mem/utils.hpp"
+#include "../../metap/metap.hpp"
+#include "../../numbers.hpp"
+#include "../../panic.hpp"
 
 // #define IS_ARM defined(__aarch64__) || defined(__ARM_ARCH_ISA_A64)
 #if defined(__aarch64__) || defined(__ARM_ARCH_ISA_A64)
-    #define IF_ARM_OR(aarch64_code, other_code) aarch64_code;
+#define IF_ARM_OR(aarch64_code, other_code) aarch64_code;
 // #define IF_ARM_OR_EXP(aarch64_code, other_code) (aarch64_code)
 #else
-    #define IF_ARM_OR(aarch64_code, other_code) other_code;
+#define IF_ARM_OR(aarch64_code, other_code) other_code;
 // #define IF_ARM_OR_EXP(aarch64_code, other_code) (other_code)
 #endif
+
+using Sfd = int;
+using Ufd = unsigned int;
 
 enum class SysResKind : u8 {
     /// No error occurred.
@@ -323,139 +330,180 @@ enum class SysResKind : u8 {
     NSRCNAMELOOP          = 177,
 };
 
-struct SysRes {
-    usize res;
-    SysResKind kind;
-    char _pad [7];
+template <typename T> struct SysRes {
+  private:
+    T res;
+    bool safety_called{false};
 
-    SysRes() = delete;
-    SysRes(usize r, u8 k) : res(r), kind(static_cast<SysResKind>(k)) {}
+    SysRes(T r, SysResKind k) : res(move(r)), kind(k) {}
 
-    SysRes static from_sys(usize r) {
-        const i64 signed_r = static_cast<i64>(r);
-        return SysRes{r, static_cast<u8>((signed_r > -4096 && signed_r < 0) ? -signed_r : 0)};
+    static void err_panic() {
+        panic("Accessing the value inside SysRes when it contains an error. "
+              "Panicing to prevent undefined behavior.\n");
     }
 
+  public:
+    SysResKind kind{SysResKind::SUCCESS};
+
+    static SysRes<T> from_kind(T r, SysResKind k) {
+        return SysRes<T>(move(r), k);
+    }
+    static SysRes<T> from_kind(T r, u8 k) {
+        return SysRes<T>::from_kind(move(r), static_cast<SysResKind>(k));
+    }
+    static SysRes<T> from_successful(T r) {
+        return SysRes<T>(move(r), SysResKind::SUCCESS);
+    }
+    static SysRes<T> from_kind_err(T r, SysResKind k) {
+        return SysRes<T>(move(r), k);
+    }
+    static SysRes<T> from_err(SysResKind k) {
+        return SysRes<T>(move(T()), k);
+    }
+
+    static SysRes<T> from_sys(usize r) {
+        static_assert(is_same<T, usize>::value, "T is not usize");
+
+        const i64 signed_r = static_cast<i64>(r);
+        return SysRes<T>::from_kind(
+            r, static_cast<u8>((signed_r > -4096 && signed_r < 0) ? -signed_r : 0)
+        );
+    }
+
+    [[nodiscard]]
     bool is_ok(this SysRes &self) {
+        self.safety_called = true;
+
         return self.kind == SysResKind::SUCCESS;
     }
 
+    [[nodiscard]]
     bool is_err(this SysRes &self) {
+        self.safety_called = true;
+
         return !self.is_ok();
+    }
+
+    DIAG_IGNORE_CLANG_PUSH("-Wold-style-cast", "-Wcast-align")
+    template <typename Y> SysRes<Y> unsafe_cast(this const SysRes &self) {
+        return SysRes<Y>::from_kind((Y)self.res, self.kind);
+    }
+    DIAG_IGNORE_POP
+
+    template <typename Y> SysRes<Y> unsafe_cast_aligned(this const SysRes &self) {
+        static_assert(is_pointer<T>::value && is_pointer<Y>::value, "Not a pointer!");
+
+        constexpr usize alignment = alignof(remove_pointer_t<Y>);
+        usize addr                = reinterpret_cast<usize>(self.res);
+        const usize misalignment  = addr % alignment;
+        if (misalignment != 0) addr += (alignment - misalignment);
+
+        return SysRes<Y>::from_kind(reinterpret_cast<Y>(addr), self.kind);
+    }
+
+    template <typename Y> SysRes<Y> unsafe_swap(this const SysRes &self, Y d) {
+        return SysRes<Y>::from_kind(move(d), self.kind);
+    }
+
+    template <typename Y> SysRes<Y> return_err(this const SysRes &self) {
+        return self.unsafe_swap(move(Y()));
+    }
+
+    T unsafe_unwrap(this SysRes &self) {
+        return move(self.res);
+    }
+
+    T unwrap(this SysRes &self) {
+#ifndef __OPTIMIZE__
+        if (self.is_err()) SysRes<T>::err_panic();
+#else
+        if (!self.safety_called && self.is_err()) SysRes<T>::err_panic();
+#endif
+
+        return move(self.unsafe_unwrap());
     }
 };
 
-template <class... T> static SysRes syscall(usize type, T... args) {
-    constexpr usize n = sizeof...(T);
-    static_assert(n <= 6, "Too much syscall arguments! You can only pass up to 6.");
+DIAG_IGNORE_CLANG_PUSH("-Wold-style-cast")
+template <typename... T> static SysRes<usize> syscall(usize n, T... args) {
+    constexpr usize n_args = sizeof...(T);
+    static_assert(n_args <= 6, "Too much syscall arguments! You can only pass up to 6.");
 
-    IF_ARM_OR(
-        register usize _r0 __asm__("x0") = type  // NOLINT(misc-const-correctness)
-        ,
-        register usize _r0 __asm__("rax") = type // NOLINT(misc-const-correctness)
-    )
-    IF_ARM_OR(register usize _r1 __asm__("x1") = type, register usize _r1 __asm__("rdi") = type)
-    IF_ARM_OR(register usize _r2 __asm__("x2") = type, register usize _r2 __asm__("rsi") = type)
-    IF_ARM_OR(register usize _r3 __asm__("x3") = type, register usize _r3 __asm__("rdx") = type)
-    IF_ARM_OR(register usize _r4 __asm__("x4") = type, register usize _r4 __asm__("r10") = type)
-    IF_ARM_OR(register usize _r5 __asm__("x5") = type, register usize _r5 __asm__("r8") = type)
-    IF_ARM_OR(register usize _r6 __asm__("x8") = type, register usize _r6 __asm__("r9") = type)
+    const usize args_array [] = {(usize)(args)...};
+    IF_ARM_OR(register usize r10 __asm__("x4"), register usize r10 __asm__("r10"))
+    IF_ARM_OR(register usize r8 __asm__("x5"), register usize r8 __asm__("r8"))
+    IF_ARM_OR(register usize r9 __asm__("x8"), register usize r9 __asm__("r9"))
+    if constexpr (n_args > 3) r10 = args_array [3];
+    if constexpr (n_args > 4) r8 = args_array [4];
+    if constexpr (n_args > 5) r9 = args_array [5];
 
-    auto set_registers = [&](auto... syscall_args) {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wold-style-cast"
-        usize args_array [] = {(usize)(syscall_args)...}; // NOLINT(clang-diagnostic-old-style-cast)
-#pragma clang diagnostic pop
-
-        if constexpr (n > 0) _r1 = args_array [0];
-        if constexpr (n > 1) _r2 = args_array [1];
-        if constexpr (n > 2) _r3 = args_array [2];
-        if constexpr (n > 3) _r4 = args_array [3];
-        if constexpr (n > 4) _r5 = args_array [4];
-        if constexpr (n > 5) _r6 = args_array [5];
-    };
-    set_registers(args...);
-
-    if constexpr (n == 0) {
+    usize ret;
+    if constexpr (n_args == 0) {
         IF_ARM_OR(
-            __asm__ __volatile__("svc #0"
-                                 : "=r"(_r0)
-                                 : "r"(_r0)
-                                 : "memory"),
-            __asm__ __volatile__("syscall"
-                                 : "=r"(_r0)
-                                 : "r"(_r0)
-                                 : "rcx", "r11", "memory")
+            __asm__ __volatile__("svc #0" : "=r"(_r0) : "r"(_r0) : "memory"),
+            __asm__ __volatile__("syscall" : "=a"(ret) : "a"(n) : "rcx", "r11", "memory")
         )
-    } else if constexpr (n == 1) {
+    } else if constexpr (n_args == 1) {
         IF_ARM_OR(
-            __asm__ __volatile__("svc #0"
-                                 : "=r"(_r0)
-                                 : "r"(_r0), "r"(_r1)
-                                 : "memory"),
-            __asm__ __volatile__("syscall"
-                                 : "=r"(_r0)
-                                 : "r"(_r0), "r"(_r1)
-                                 : "rcx", "r11", "memory")
+            __asm__ __volatile__("svc #0" : "=r"(_r0) : "r"(_r0), "r"(_r1) : "memory"),
+            __asm__ __volatile__(
+                "syscall" : "=a"(ret) : "a"(n), "D"(args_array [0]) : "rcx", "r11", "memory"
+            )
         )
-    } else if constexpr (n == 2) {
+    } else if constexpr (n_args == 2) {
         IF_ARM_OR(
-            __asm__ __volatile__("svc #0"
-                                 : "=r"(_r0)
-                                 : "r"(_r0), "r"(_r1), "r"(_r2)
-                                 : "memory"),
-            __asm__ __volatile__("syscall"
-                                 : "=r"(_r0)
-                                 : "r"(_r0), "r"(_r1), "r"(_r2)
-                                 : "rcx", "r11", "memory")
+            __asm__ __volatile__("svc #0" : "=r"(_r0) : "r"(_r0), "r"(_r1), "r"(_r2) : "memory"),
+            __asm__ __volatile__(
+                "syscall" : "=a"(ret) : "a"(n), "D"(args_array [0]), "S"(args_array [1]) : "rcx",
+                "r11", "memory"
+            )
         )
-    } else if constexpr (n == 3) {
+    } else if constexpr (n_args == 3) {
         IF_ARM_OR(
-            __asm__ __volatile__("svc #0"
-                                 : "=r"(_r0)
-                                 : "r"(_r0), "r"(_r1), "r"(_r2), "r"(_r3)
-                                 : "memory"),
-            __asm__ __volatile__("syscall"
-                                 : "=r"(_r0)
-                                 : "r"(_r0), "r"(_r1), "r"(_r2), "r"(_r3)
-                                 : "rcx", "r11", "memory")
+            __asm__ __volatile__(
+                "svc #0" : "=r"(_r0) : "r"(_r0), "r"(_r1), "r"(_r2), "r"(_r3) : "memory"
+            ),
+            __asm__ __volatile__(
+                "syscall" : "=a"(ret) : "a"(n), "D"(args_array [0]), "S"(args_array [1]),
+                "d"(args_array [2]) : "rcx", "r11", "memory"
+            )
         )
-    } else if constexpr (n == 4) {
+    } else if constexpr (n_args == 4) {
         IF_ARM_OR(
-            __asm__ __volatile__("svc #0"
-                                 : "=r"(_r0)
-                                 : "r"(_r0), "r"(_r1), "r"(_r2), "r"(_r3), "r"(_r4)
-                                 : "memory"),
-            __asm__ __volatile__("syscall"
-                                 : "=r"(_r0)
-                                 : "r"(_r0), "r"(_r1), "r"(_r2), "r"(_r3), "r"(_r4)
-                                 : "rcx", "r11", "memory")
+            __asm__ __volatile__(
+                "svc #0" : "=r"(_r0) : "r"(_r0), "r"(_r1), "r"(_r2), "r"(_r3), "r"(r10) : "memory"
+            ),
+            __asm__ __volatile__(
+                "syscall" : "=a"(ret) : "a"(n), "D"(args_array [0]), "S"(args_array [1]),
+                "d"(args_array [2]), "r"(r10) : "rcx", "r11", "memory"
+            )
         )
-    } else if constexpr (n == 5) {
+    } else if constexpr (n_args == 5) {
         IF_ARM_OR(
-            __asm__ __volatile__("svc #0"
-                                 : "=r"(_r0)
-                                 : "r"(_r0), "r"(_r1), "r"(_r2), "r"(_r3), "r"(_r4), "r"(_r5),
-                                 : "memory"),
-            __asm__ __volatile__("syscall"
-                                 : "=r"(_r0)
-                                 : "r"(_r0), "r"(_r1), "r"(_r2), "r"(_r3), "r"(_r4), "r"(_r5)
-                                 : "rcx", "r11", "memory")
+            __asm__ __volatile__(
+                "svc #0" : "=r"(_r0) : "r"(_r0), "r"(_r1), "r"(_r2), "r"(_r3), "r"(r10),
+                "r"(r8), : "memory"
+            ),
+            __asm__ __volatile__(
+                "syscall" : "=a"(ret) : "a"(n), "D"(args_array [0]), "S"(args_array [1]),
+                "d"(args_array [2]), "r"(r10), "r"(r8) : "rcx", "r11", "memory"
+            )
         )
-    } else if constexpr (n == 6) {
+    } else if constexpr (n_args == 6) {
         IF_ARM_OR(
-            __asm__ __volatile__("svc #0"
-                                 : "=r"(_r0)
-                                 : "r"(_r0), "r"(_r1), "r"(_r2), "r"(_r3), "r"(_r4), "r"(_r5),
-                                   "r"(_r6)
-                                 : "memory"),
-            __asm__ __volatile__("syscall"
-                                 : "=r"(_r0)
-                                 : "r"(_r0), "r"(_r1), "r"(_r2), "r"(_r3), "r"(_r4), "r"(_r5),
-                                   "r"(_r6)
-                                 : "rcx", "r11", "memory")
+            __asm__ __volatile__(
+                "svc #0" : "=r"(_r0) : "r"(_r0), "r"(_r1), "r"(_r2), "r"(_r3), "r"(r10), "r"(r8),
+                "r"(r9) : "memory"
+            ),
+            __asm__ __volatile__(
+                "syscall" : "=a"(ret) : "a"(n), "D"(args_array [0]), "S"(args_array [1]),
+                "d"(args_array [2]), "r"(r10), "r"(r8), "r"(r9) : "rcx", "r11", "memory"
+            )
         )
     }
 
-    return SysRes::from_sys(_r0);
+    return SysRes<usize>::from_sys(ret);
 }
+DIAG_IGNORE_CLANG_POP
+
+#include "wrapper.hpp"

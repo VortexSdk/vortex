@@ -15,7 +15,7 @@ BinPackArguments: True
 BinPackParameters: True
 BitFieldColonSpacing: After
 BreakAdjacentStringLiterals: True
-BreakAfterAttributes: Always
+BreakAfterAttributes: Leave
 BreakBeforeBinaryOperators: None
 BreakBeforeBraces: Attach
 BreakBeforeInlineASMColon: OnlyMultiline
@@ -25,7 +25,6 @@ ColumnLimit: 100
 Cpp11BracedListStyle: True
 DerivePointerAlignment: True
 IncludeBlocks: Merge
-IndentPPDirectives: BeforeHash
 IndentWidth: 4
 InsertNewlineAtEOF: True
 LineEnding: LF

@@ -2,13 +2,31 @@
 
 set -euo pipefail  # Enables strict error handling: stop on error, undefined vars, and fail on pipe error.
 
-readonly PROJECT_NAME="vortex"
+# Can either use clang or gcc.
 readonly BUILD_DIR="build"
-readonly OUTPUT="$BUILD_DIR/$PROJECT_NAME"
+readonly PROJECT_NAME="vortex"
+readonly COMPILER="${COMPILER:-clang}" 
 readonly INCLUDES=("-I." "-Ibuild/uapi")
-readonly BUILD_FLAGS=("-ffreestanding" "-fno-builtin" "-nostdlib" "-nostdlib++" "-Wno-missing-noreturn" "-std=c++23" "-Weverything" "-Werror" "-fno-exceptions" "-Wno-c++98-compat" "-Wno-c++98-compat-pedantic" "-Wno-missing-prototypes" "-Wno-reserved-identifier" "-Wno-unsafe-buffer-usage" "-Wno-unused-function" "-Wno-zero-as-null-pointer-constant" "-Wno-extern-initializer" "-Wno-missing-variable-declarations" "-fno-signed-char" "-fno-use-cxa-atexit" "-fno-knr-functions" "-fdata-sections" "-ffunction-sections" "-nostdinc" "-nostdinc++" "-nostdlibinc" "-Wl,--gc-sections")
-
+readonly OUTPUT="$BUILD_DIR/$PROJECT_NAME"
+readonly TEST_FILES=$(find tests/ -type f -name "*.cpp")
 readonly ALL_FILES=$(find . -type f -name "*.*pp" | grep -v "build")
+BUILD_FLAGS=("-ffreestanding" "-fno-builtin" "-nostdlib" "-nostdlib++" "-nostdinc" "-nostdinc++" "-std=c++23" "-Werror" "-fno-exceptions" "-Wno-c++98-compat" "-Wno-c++98-compat-pedantic" "-Wno-c++20-extensions" "-Wno-padded" "-Wno-reserved-macro-identifier" "-Wno-unsafe-buffer-usage" "-Wno-unused-function" "-Wno-gnu-anonymous-struct" "-Wno-nested-anon-types" "-Wno-vla-cxx-extension" "-Wno-zero-length-array" "-Wno-flexible-array-extensions" "-Wno-unused-template" "-Wno-zero-as-null-pointer-constant" "-fno-signed-char" "-fno-use-cxa-atexit" "-fdata-sections" "-ffunction-sections" "-Wl,--gc-sections")
+
+readonly GCC_EXTRA_BUILD_FLAGS=("-Wall" "-Wextra" "-nostartfiles" "-fno-stack-protector")
+readonly CLANG_EXTRA_BUILD_FLAGS=("-Weverything" "-nostdlibinc" "-fno-knr-functions")
+readonly GCC_SANITIZER_FLAG=("-fsanitize=undefined,float-divide-by-zero,signed-integer-overflow")
+readonly CLANG_SANITIZER_FLAG=("-fsanitize=undefined,nullability,float-divide-by-zero,unsigned-integer-overflow,implicit-conversion,local-bounds")
+
+if [ $COMPILER == "clang" ];then
+    BUILD_FLAGS+=("${CLANG_EXTRA_BUILD_FLAGS[@]}")
+else
+    if [ $COMPILER == "gcc" ]; then
+        BUILD_FLAGS+=("${GCC_EXTRA_BUILD_FLAGS[@]}")
+    else
+        echo "Invalid compiler `$COMPILER`!"
+        exit 1
+    fi
+fi
 
 # Utility function to print and execute commands.
 exec_n_print() {
@@ -62,9 +80,6 @@ build_and_run_tests() {
     # Validate and process optimization level.
     local build_flags=("${BUILD_FLAGS[@]}")
     case "$optimization_level" in
-        "debug")
-            build_flags+=("-O0" "-g" "-fsanitize=undefined,nullability,float-divide-by-zero,unsigned-integer-overflow,implicit-conversion,local-bounds" "-lubsan" "-lc" "-lgcc_s" "-lstdc++")
-            ;;
         "release")
             build_flags+=("-O3" "-flto" "-fno-rtti" "-static")
             ;;
@@ -72,7 +87,15 @@ build_and_run_tests() {
             build_flags+=("-Oz" "-flto" "-fno-rtti" "-static")
             ;;
         "")
-            build_flags+=("-O0")  # Default to debug if no optimization level is specified.
+            build_flags+=("-O0" "-g" "-lubsan" "-lc" "-lgcc_s" "-lstdc++") # Default to debug
+
+            if [ $COMPILER == "clang" ];then
+                build_flags+=("${CLANG_SANITIZER_FLAG[@]}")
+            else
+                if [ $COMPILER == "gcc" ]; then
+                    build_flags+=("${GCC_SANITIZER_FLAG[@]}")
+                fi
+            fi
             ;;
         *)
             echo "Invalid optimization level!" >&2
@@ -86,23 +109,14 @@ build_and_run_tests() {
         # Compile and run the specified tests, creating unique output files for each.
         for file in "${test_files[@]}"; do
             local test_output="$BUILD_DIR/$(basename "$file" .cpp)_test"
-            exec_n_print clang++ "$file" -o "$test_output" "${INCLUDES[@]}" "${build_flags[@]}"
+            exec_n_print "$COMPILER" "$file" -o "$test_output" "${INCLUDES[@]}" "${build_flags[@]}"
             "$test_output"
         done
     else
-        # Find all test files and run them.
-        local test_files_found
-        test_files_found=$(find tests/ -type f -name "*.cpp")
-
-        if [[ -z "$test_files_found" ]]; then
-            echo "No test files found in 'tests/' directory!" >&2
-            exit 1
-        fi
-
         # Compile and run all tests, creating unique output files for each.
-        for file in $test_files_found; do
+        for file in $TEST_FILES; do
             local test_output="$BUILD_DIR/$(basename "$file" .cpp)_test"
-            exec_n_print clang++ "$file" -o "$test_output" "${INCLUDES[@]}" "${build_flags[@]}"
+            exec_n_print "$COMPILER" "$file" -o "$test_output" "${INCLUDES[@]}" "${build_flags[@]}"
             exec_n_print "$test_output"
         done
     fi
@@ -140,11 +154,16 @@ build_command_db() {
     find tests/ -type f -name "*.cpp" | while read -r filename; do
         local base_name
         base_name=$(basename "$filename")
-        exec_n_print clang++ -MJ "$BUILD_DIR/commands_db/$base_name.o.json" -o "$BUILD_DIR/tmp/$base_name.pch" "$filename" "${build_flags[@]}" "${INCLUDES[@]}"
+        exec_n_print "$COMPILER" -MJ "$BUILD_DIR/commands_db/$base_name.o.json" -o "$BUILD_DIR/tmp/$base_name.pch" "$filename" "${build_flags[@]}" "${INCLUDES[@]}"
     done
 
     # Create the final compile_commands.json.
     sed -e '1s/^/[\'$'\n''/' -e '$s/,$/\'$'\n'']/' "$BUILD_DIR/commands_db/"*.o.json > compile_commands.json
+}
+
+sysdef_gen() {
+    exec_n_print "$COMPILER" -lstdc++ -std=c++23 vortex/linux/syscall/wrapperGenerator.cpp -o build/wrapperGenerator
+    ./build/wrapperGenerator
 }
 
 # Clean the build directory.
@@ -162,23 +181,26 @@ main() {
         "clean")
             clean
             ;;
-        "command_db")
+        "command-db-gen")
             build_command_db
+            ;;
+        "sysdef-gen")
+            sysdef_gen
             ;;
         "uapi")
             exec vortex/linux/patch.sh
             ;;
         "lint")
-            clang-tidy $ALL_FILES
+            exec_n_print clang-tidy --use-color $TEST_FILES
             ;;
         "fmt")
-            clang-format -i $ALL_FILES
+            exec_n_print clang-format -i $ALL_FILES
             ;;
         "fmt-check")
-            clang-format --dry-run --Werror $ALL_FILES
+            exec_n_print clang-format --dry-run --Werror $ALL_FILES
             ;;
         *)
-            echo "Usage: $0 {test|clean|command_db|uapi} [options]" >&2
+            echo "Usage: $0 {test|clean|command-db-gen|sysdef-gen|uapi} [options]" >&2
             ;;
     esac
 }

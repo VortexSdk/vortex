@@ -2,7 +2,7 @@
 
 # This script should be called from the root directory like `./vortex/linux/patch.sh`.
 
-VERSION="6.10"
+VERSION="6.11"
 CLANG_FORMAT=".clang-format"
 
 mkdir -p build/uapi
@@ -35,10 +35,18 @@ cat "vortex/linux/headers.txt" | while read header; do
         clang-format --style=file:"$CLANG_FORMAT" -i "build/uapi/asm-generic/$header"
     fi
 
-    if [ -f "build/uapi/include/linux/$header" ]; then
+    if [[ -f "build/uapi/include/linux/$header" ]]; then
         cp "build/uapi/include/linux/$header" "build/uapi/linux/$header"
         clang-format --style=file:"$CLANG_FORMAT" -i "build/uapi/linux/$header"
+    else
+        if [[ -d "build/uapi/include/linux/$header" ]]; then
+            cp -R "build/uapi/include/linux/$header" "build/uapi/linux/"
+            for filename in build/uapi/linux/$header/*.h; do
+                clang-format --style=file:"$CLANG_FORMAT" -i "$filename"
+            done
+        fi
     fi
 done
 
+touch "build/uapi/unistd.h"
 # rm -Rf "include"

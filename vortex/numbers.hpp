@@ -1,13 +1,21 @@
 #pragma once
 
 #ifdef __MINGW32__
-    #define WRDSIZE 32
+#define WRDSIZE 32
 #else
-    #if defined __x86_64__ && !defined __ILP32__
-        #define WRDSIZE 64
-    #else
-        #define WRDSIZE 32
-    #endif
+#if defined __x86_64__ && !defined __ILP32__
+#define WRDSIZE 64
+#else
+#define WRDSIZE 32
+#endif
+#endif
+
+#define __LITTLE_ENDIAN 1234
+#define __BIG_ENDIAN    4321
+#define __PDP_ENDIAN    3412
+
+#ifndef __BYTE_ORDER
+#define __BYTE_ORDER __LITTLE_ENDIAN
 #endif
 
 static_assert(sizeof(signed char) == 1, "`signed char` should be 1 byte.");
@@ -35,5 +43,16 @@ static_assert(sizeof(unsigned long long int) == 8, "`unsigned long long int` sho
 typedef unsigned long long int u64;
 #endif
 
-using isize = i64;
-using usize = u64;
+using isize       = i64;
+using usize       = u64;
+
+using u8_alias    = __attribute__((__may_alias__)) u8;
+using i8_alias    = __attribute__((__may_alias__)) i8;
+using u16_alias   = __attribute__((__may_alias__)) u16;
+using i16_alias   = __attribute__((__may_alias__)) i16;
+using u32_alias   = __attribute__((__may_alias__)) u32;
+using i32_alias   = __attribute__((__may_alias__)) i32;
+using u64_alias   = __attribute__((__may_alias__)) u64;
+using i64_alias   = __attribute__((__may_alias__)) i64;
+using usize_alias = __attribute__((__may_alias__)) usize;
+using isize_alias = __attribute__((__may_alias__)) isize;
