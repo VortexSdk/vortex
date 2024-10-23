@@ -308,17 +308,3 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct M
         return self.ncm.remove(key);
     }
 };
-
-template <typename T> using ArrayMapEqlFn = bool (*)(const Slice<const T>, const Slice<const T>);
-template <typename T> bool default_arraymap_eql_fn(const Slice<const T> a, const Slice<const T> b) {
-    if (a.len != b.len) [[unlikely]] {
-        return false;
-    }
-
-    const auto *a_ptr = reinterpret_cast<const u8 *const>(a.ptr);
-    const auto *b_ptr = reinterpret_cast<const u8 *const>(b.ptr);
-    for (usize i = 0; i < sizeof(T) * a.len; i++)
-        if (a_ptr [i] != b_ptr [i]) return false;
-
-    return true;
-}
