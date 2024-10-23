@@ -1,9 +1,7 @@
 #pragma once
 
 #include "linux/syscall/syscall.hpp"
-#include "mem/Allocator.hpp"
-#include "mem/Arena.hpp"
-#include "mem/utils.hpp"
+#include "mem/mem.hpp"
 #include "metap/metap.hpp"
 #include "numbers.hpp"
 
@@ -31,13 +29,16 @@ template <typename T = u8> struct BasicString {
     BasicString(const BasicString &t)            = delete;
     BasicString &operator=(const BasicString &t) = delete;
     BasicString() : len(0), cap(0), data({.buf = {0}}) {
-        memset(prefix, 0, sizeof(prefix));
+        memset(reinterpret_cast<void *>(prefix), 0, static_cast<usize>(sizeof(prefix)));
     }
     BasicString(BasicString &&s) noexcept
         : len(exchange(s.len, U32_0)), cap(exchange(s.cap, U32_0)),
           data(exchange(s.data, StringData<T>{.buf = {}})) {
-        memcpy(prefix, s.prefix, sizeof(prefix));
-        memset(s.prefix, 0, sizeof(s.prefix));
+        memcpy(
+            reinterpret_cast<void *>(prefix), reinterpret_cast<const void *>(s.prefix),
+            static_cast<usize>(sizeof(prefix))
+        );
+        memset(reinterpret_cast<void *>(s.prefix), 0, static_cast<usize>(sizeof(s.prefix)));
     }
 
     template <AllocatorStrategy U>

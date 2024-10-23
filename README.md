@@ -23,6 +23,11 @@ To build this project, you need:
 - C++23 support
 - A Linux system with `io_uring` support (6.0 or newer)
 
+Download and config uapi headers:
+```bash
+./build.sh uapi
+```
+
 ## Test run
 
 Run the tests by executing:

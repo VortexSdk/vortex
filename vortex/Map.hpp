@@ -2,9 +2,7 @@
 
 #include "linux/syscall/syscall.hpp"
 #include "math.hpp"
-#include "mem/Allocator.hpp"
-#include "mem/Arena.hpp"
-#include "mem/utils.hpp"
+#include "mem/mem.hpp"
 #include "numbers.hpp"
 #include "rapidhash.hpp"
 #include "string.hpp"
@@ -68,7 +66,7 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct N
         "Invalid load factor for CONFIG.max_load_factor."
     );
 
-    NoStorageMap() : count(0), entries(Slice<MapEntry<T, Y>>()) {}
+    NoStorageMap() {}
     NoStorageMap(const NoStorageMap &t)            = delete;
     NoStorageMap &operator=(const NoStorageMap &t) = delete;
     NoStorageMap(NoStorageMap &&m) noexcept
@@ -212,7 +210,7 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct M
     Y *values{null<Y>()};
     usize key_value_len{0};
 
-    Map() : ncm(move(CURRENT_NCM())), keys(null<T>()), values(null<Y>()), key_value_len(0) {}
+    Map() {}
     Map(const Map &t)            = delete;
     Map &operator=(const Map &t) = delete;
     Map(Map &&m) noexcept

@@ -1,13 +1,11 @@
 #pragma once
 
+#include "../diagnostics.hpp"
 #include "../math.hpp"
 #include "../mem/utils.hpp"
+#include "../metap/metap.hpp"
 #include "../numbers.hpp"
 #include "syscall/syscall.hpp"
-#include "syscall/wrapper.hpp"
-#include "vortex/diagnostics.hpp"
-#include "vortex/linux/syscall/wrapperHelper.hpp"
-#include "vortex/metap/metap.hpp"
 #include <asm-generic/mman-common.h>
 #include <asm/unistd_64.h>
 #include <linux/io_uring.h>
@@ -34,6 +32,38 @@ struct SubmissionQueue {
     Slice<u8> mem{};
     Slice<io_uring_sqe> sqes{};
 
+    SubmissionQueue() {}
+    SubmissionQueue(
+        u32 _mask, Slice<u32> _array, u32* _head, u32* _tail, u32* _flags, u32* _dropped,
+        u32 _sqe_head, u32 _sqe_tail, Slice<u8> _mem, Slice<io_uring_sqe> _sqes
+    )
+        : mask(_mask), array(move(_array)), head(_head), tail(_tail), flags(_flags),
+          dropped(_dropped), sqe_head(_sqe_head), sqe_tail(_sqe_tail), mem(move(_mem)),
+          sqes(move(_sqes)) {}
+
+    SubmissionQueue(const SubmissionQueue& t)            = delete;
+    SubmissionQueue& operator=(const SubmissionQueue& t) = delete;
+    SubmissionQueue(SubmissionQueue&& s) noexcept
+        : mask(exchange(s.mask, U32_0)), array(move(s.array)), head(exchange(s.head, null<u32>())),
+          tail(exchange(s.tail, null<u32>())), flags(exchange(s.flags, null<u32>())),
+          dropped(exchange(s.dropped, null<u32>())), sqe_head(exchange(s.sqe_head, U32_0)),
+          sqe_tail(exchange(s.sqe_tail, U32_0)), mem(move(s.mem)), sqes(move(s.sqes)) {}
+    SubmissionQueue& operator=(SubmissionQueue&& other) noexcept {
+        if (this != &other) {
+            mask     = exchange(other.mask, U32_0);
+            array    = move(other.array);
+            head     = exchange(other.head, null<u32>());
+            tail     = exchange(other.tail, null<u32>());
+            flags    = exchange(other.flags, null<u32>());
+            dropped  = exchange(other.dropped, null<u32>());
+            sqe_head = exchange(other.sqe_head, U32_0);
+            sqe_tail = exchange(other.sqe_tail, U32_0);
+            mem      = move(other.mem);
+            sqes     = move(other.sqes);
+        }
+        return *this;
+    }
+
     static usize max(usize a, usize b) {
         return (a > b) ? a : b;
     }
@@ -59,12 +89,12 @@ struct SubmissionQueue {
                         .unsafe_cast<io_uring_sqe*>();
         if (sqes.is_err()) return sqes.return_err<SubmissionQueue>();
 
-        return SysRes<SubmissionQueue>::from_successful(SubmissionQueue{
+        return SysRes<SubmissionQueue>::from_successful(SubmissionQueue(
             *off_cast(m, off.ring_mask), Slice<u32>::init(p.sq_entries, off_cast(m, off.array)),
             off_cast(m, off.head), off_cast(m, off.tail), off_cast(m, off.dropped),
             off_cast(m, off.flags), 0, 0, Slice<u8>::init(mem_size, m),
             Slice<io_uring_sqe>::init(sqes_size, sqes.unwrap())
-        });
+        ));
     }
 
     void deinit(this SubmissionQueue& self) {
@@ -80,19 +110,38 @@ struct CompletionQueue {
     u32* overflow{null<u32>()};
     Slice<io_uring_cqe> cqes{};
 
+    CompletionQueue() {}
+    CompletionQueue(u32 _mask, u32* _head, u32* _tail, u32* _overflow, Slice<io_uring_cqe> _cqes)
+        : mask(_mask), head(_head), tail(_tail), overflow(_overflow), cqes(move(_cqes)) {}
+
+    CompletionQueue(const CompletionQueue& t)            = delete;
+    CompletionQueue& operator=(const CompletionQueue& t) = delete;
+    CompletionQueue(CompletionQueue&& s) noexcept
+        : mask(exchange(s.mask, U32_0)), head(exchange(s.head, null<u32>())),
+          tail(exchange(s.tail, null<u32>())), overflow(exchange(s.overflow, null<u32>())),
+          cqes(move(s.cqes)) {}
+    CompletionQueue& operator=(CompletionQueue&& other) noexcept {
+        if (this != &other) {
+            mask     = exchange(other.mask, U32_0);
+            head     = exchange(other.head, null<u32>());
+            tail     = exchange(other.tail, null<u32>());
+            overflow = exchange(other.overflow, null<u32>());
+            cqes     = move(other.cqes);
+        }
+        return *this;
+    }
+
     static CompletionQueue init(const io_uring_params& p, const SubmissionQueue& sq) {
         const auto& off = p.cq_off;
         u8* m           = sq.mem.ptr;
 
-        return CompletionQueue{
-            .mask     = *off_cast(m, off.ring_mask),
-            .head     = off_cast(m, off.head),
-            .tail     = off_cast(m, off.tail),
-            .overflow = off_cast(m, off.overflow),
-            .cqes     = Slice<io_uring_cqe>::init(
+        return CompletionQueue(
+            *off_cast(m, off.ring_mask), off_cast(m, off.head), off_cast(m, off.tail),
+            off_cast(m, off.overflow),
+            Slice<io_uring_cqe>::init(
                 p.cq_entries, reinterpret_cast<io_uring_cqe*>(off_cast(m, off.cqes))
             )
-        };
+        );
     }
 
     void deinit() {}
@@ -104,6 +153,23 @@ struct IoUring {
     u32 setup_flags{0};
     SubmissionQueue sq{};
     CompletionQueue cq{};
+
+    IoUring() {}
+    IoUring(const IoUring& t)            = delete;
+    IoUring& operator=(const IoUring& t) = delete;
+    IoUring(IoUring&& i) noexcept
+        : io_fd(exchange(i.io_fd, static_cast<FdL>(-1))), features(exchange(i.features, U32_0)),
+          setup_flags(exchange(i.setup_flags, U32_0)), sq(move(i.sq)), cq(move(i.cq)) {}
+    IoUring& operator=(IoUring&& other) noexcept {
+        if (this != &other) {
+            io_fd       = exchange(other.io_fd, static_cast<FdL>(-1));
+            features    = exchange(other.features, U32_0);
+            setup_flags = exchange(other.setup_flags, U32_0);
+            sq          = move(other.sq);
+            cq          = move(other.cq);
+        }
+        return *this;
+    }
 
     void close_fd(this IoUring& self) {
         syscall(__NR_close, self.io_fd);
