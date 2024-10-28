@@ -38,3 +38,7 @@ template <typename T> constexpr T ceilPowerOfTwo(T n) {
 
     return n + 1;
 }
+
+static usize max(usize a, usize b) {
+    return (a > b) ? a : b;
+}

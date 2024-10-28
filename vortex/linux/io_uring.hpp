@@ -64,10 +64,6 @@ struct SubmissionQueue {
         return *this;
     }
 
-    static usize max(usize a, usize b) {
-        return (a > b) ? a : b;
-    }
-
     static SysRes<SubmissionQueue> init(FdUL fd, const io_uring_params& p) {
         const auto& off       = p.sq_off;
         const usize sqes_size = p.sq_entries;

@@ -11,6 +11,7 @@ namespace vortex {
 #include "mem/mem.hpp"
 #include "metap/metap.hpp"
 #include "string.hpp"
+#include "Vec.hpp"
 
 } // namespace vortex
 
