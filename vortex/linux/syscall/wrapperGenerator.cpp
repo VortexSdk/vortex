@@ -104,7 +104,14 @@ std::unordered_map<std::string, std::string> syscall_arg_type_map = {
     {"ssize_t",                     "isize"               },
     {"uint32_t",                    "u32"                 },
     {"size_t *",                    "usize *"             },
+    {"struct statx *",              "statx_t *"           },
+    {"struct mmsghdr *",            "mmsghdr *"           },
     {"struct sockaddr *",           "sockaddr *"          },
+    {"struct linux_dirent64 *",     "linux_dirent64 *"    },
+    {"struct sched_param *",        "sched_param *"       },
+    {"struct getcpu_cache *",       "getcpu_cache *"      },
+    {"struct user_msghdr *",        "user_msghdr *"       },
+    {"struct file_handle *",        "file_handle *"       },
     {"const struct __aio_sigset *", "const __aio_sigset *"},
 };
 std::unordered_map<std::string, std::string> syscall_ret_type_map = {
@@ -131,6 +138,7 @@ std::unordered_map<std::string, std::string> syscall_ret_type_map = {
 std::string createSyscallWrapper(const std::vector<Definition>& definitions) {
     std::string s = "// Warning: This file is auto generated. Don't edit this file directly!\n\n"
                     "#pragma once\n"
+                    "#include \"syscall_impl.hpp\"\n\n"
                     "#include \"wrapperHelper.hpp\"\n\n"
                     "// NOLINTBEGIN\n\n";
 

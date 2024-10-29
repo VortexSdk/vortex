@@ -313,7 +313,6 @@ long creat(const char *pathname, umode_t mode);
 long select(int n, fd_set *inp, fd_set *outp, fd_set *exp, struct __kernel_old_timeval *tvp);
 long poll(struct pollfd *ufds, unsigned int nfds, int timeout);
 long epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout);
-long ustat(unsigned dev, struct ustat *ubuf);
 long vfork(void);
 long uselib(const char *library);
 long sysfs(int option, unsigned long arg1, unsigned long arg2);

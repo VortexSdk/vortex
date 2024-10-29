@@ -6,11 +6,8 @@
 #include "../metap/metap.hpp"
 #include "../numbers.hpp"
 #include "syscall/syscall.hpp"
+#include "syscall/wrapperHelper.hpp"
 #include <asm-generic/mman-common.h>
-#include <asm/unistd_64.h>
-#include <linux/io_uring.h>
-#include <linux/mman.h>
-#include <linux/signal.h>
 
 inline u32* off_cast(u8* mem, u32 idx) {
     return reinterpret_cast<u32*>(&mem [idx]);
@@ -320,9 +317,11 @@ struct IoUring {
         sqe->off          = (u64)offset;
         return sqe;
     }
+
     io_uring_sqe* read(this IoUring& self, u64 user_data, FdI fd, void* buf, usize count) {
         return self.pread(user_data, fd, buf, count, 0);
     }
+
     io_uring_sqe*
     pwrite(this IoUring& self, u64 user_data, FdI fd, const void* buf, usize count, off_t offset) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_WRITE, user_data, fd);
@@ -331,6 +330,7 @@ struct IoUring {
         sqe->off          = (u64)offset;
         return sqe;
     }
+
     io_uring_sqe* write(this IoUring& self, u64 user_data, FdI fd, const void* buf, usize count) {
         return self.pwrite(user_data, fd, buf, count, 0);
     }
@@ -340,37 +340,42 @@ struct IoUring {
         off_t offset, rwf_t flags
     ) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_READV, user_data, fd);
-        sqe->rw_flags     = flags;
+        sqe->rw_flags     = (__kernel_rwf_t)flags;
         sqe->len          = iovcnt;
         sqe->addr         = (u64)iov;
         sqe->off          = (u64)offset;
         return sqe;
     }
+
     io_uring_sqe* preadv(
         this IoUring& self, u64 user_data, FdI fd, const struct iovec* iov, u32 iovcnt, off_t offset
     ) {
         return self.preadv2(user_data, fd, iov, iovcnt, offset, 0);
     }
+
     io_uring_sqe*
     readv(this IoUring& self, u64 user_data, FdI fd, const struct iovec* iov, u32 iovcnt) {
         return self.preadv2(user_data, fd, iov, iovcnt, 0, 0);
     }
+
     io_uring_sqe* pwritev2(
         this IoUring& self, u64 user_data, FdI fd, const struct iovec* iov, u32 iovcnt,
         off_t offset, rwf_t flags
     ) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_WRITEV, user_data, fd);
-        sqe->rw_flags     = flags;
+        sqe->rw_flags     = (__kernel_rwf_t)flags;
         sqe->len          = iovcnt;
         sqe->addr         = (u64)iov;
         sqe->off          = (u64)offset;
         return sqe;
     }
+
     io_uring_sqe* pwritev(
         this IoUring& self, u64 user_data, FdI fd, const struct iovec* iov, u32 iovcnt, off_t offset
     ) {
         return self.pwritev2(user_data, fd, iov, iovcnt, offset, 0);
     }
+
     io_uring_sqe*
     writev(this IoUring& self, u64 user_data, FdI fd, const struct iovec* iov, u32 iovcnt) {
         return self.pwritev2(user_data, fd, iov, iovcnt, 0, 0);
@@ -387,17 +392,20 @@ struct IoUring {
         sqe->poll32_events = poll_mask;
         return sqe;
     }
+
     io_uring_sqe* poll_add_multishot(this IoUring& self, u64 user_data, FdI fd, u32 poll_mask) {
         io_uring_sqe* sqe = self.poll_add(user_data, fd, poll_mask);
         sqe->len          = IORING_POLL_ADD_MULTI;
         return sqe;
     }
+
     io_uring_sqe* poll_remove(this IoUring& self, u64 user_data) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_POLL_REMOVE, user_data, -1);
         sqe->addr         = user_data;
         sqe->len          = IORING_POLL_ADD_MULTI;
         return sqe;
     }
+
     io_uring_sqe* poll_update(
         this IoUring& self, u64 old_user_data, u64 new_user_data, u32 poll_mask, u32 flags
     ) {
@@ -407,6 +415,18 @@ struct IoUring {
         sqe->len           = flags;
         sqe->poll32_events = poll_mask;
         sqe->addr          = old_user_data;
+        return sqe;
+    }
+
+    io_uring_sqe* poll_update(
+        this IoUring& self, u64 user_data, u64 old_user_data, u64 new_user_data, u32 poll_mask,
+        u32 flags
+    ) {
+        io_uring_sqe* sqe  = self.get_sqe(IORING_OP_POLL_REMOVE, user_data, -1);
+        sqe->addr          = old_user_data;
+        sqe->len           = flags;
+        sqe->off           = new_user_data;
+        sqe->poll32_events = poll_mask;
         return sqe;
     }
 
@@ -434,6 +454,456 @@ struct IoUring {
         sqe->len          = 1;
         sqe->msg_flags    = flags;
         sqe->addr         = (u64)msg;
+        return sqe;
+    }
+
+    io_uring_sqe* accept(
+        this IoUring& self, u64 user_data, FdI fd, sockaddr* addr, socklen_t* addrlen, int flags
+    ) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_ACCEPT, user_data, fd);
+        sqe->addr         = (u64)addr;
+        sqe->addr2        = (u64)addrlen;
+        sqe->accept_flags = (u32)flags;
+        return sqe;
+    }
+
+    io_uring_sqe* shutdown(this IoUring& self, u64 user_data, FdI fd, int how) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_SHUTDOWN, user_data, fd);
+        sqe->len          = (u32)how;
+        return sqe;
+    }
+
+    io_uring_sqe* renameat(
+        this IoUring& self, u64 user_data, int olddfd, const char* oldpath, int newdfd,
+        const char* newpath, int flags
+    ) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_RENAMEAT, user_data, olddfd);
+        sqe->addr         = (u64)oldpath;
+        sqe->len          = (u32)newdfd;
+        sqe->addr2        = (u64)newpath;
+        sqe->rename_flags = (u32)flags;
+        return sqe;
+    }
+
+    io_uring_sqe* unlink(this IoUring& self, u64 user_data, const char* path, int flags) {
+        return self.unlinkat(user_data, AT_FDCWD, path, flags);
+    }
+
+    io_uring_sqe*
+    unlinkat(this IoUring& self, u64 user_data, int dfd, const char* path, int flags) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_UNLINKAT, user_data, dfd);
+        sqe->addr         = (u64)path;
+        sqe->unlink_flags = (u32)flags;
+        return sqe;
+    }
+
+    io_uring_sqe*
+    openat(this IoUring& self, u64 user_data, int dfd, const char* path, int flags, mode_t mode) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_OPENAT, user_data, dfd);
+        sqe->addr         = (u64)path;
+        sqe->len          = (u32)mode;
+        sqe->open_flags   = (u32)flags;
+        return sqe;
+    }
+
+    io_uring_sqe* statx(
+        this IoUring& self, u64 user_data, int dfd, const char* path, int flags, unsigned mask,
+        statx_t* statxbuf
+    ) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_STATX, user_data, dfd);
+        sqe->addr         = (u64)path;
+        sqe->len          = mask;
+        sqe->addr2        = (u64)statxbuf;
+        sqe->statx_flags  = (u32)flags;
+        return sqe;
+    }
+
+    io_uring_sqe* splice(
+        this IoUring& self, u64 user_data, FdI fd_in, i64 off_in, FdI fd_out, i64 off_out,
+        u32 nbytes, unsigned int splice_flags
+    ) {
+        io_uring_sqe* sqe  = self.get_sqe(IORING_OP_SPLICE, user_data, fd_out);
+        sqe->addr          = 0;
+        sqe->len           = nbytes;
+        sqe->off           = (u64)off_out;
+        sqe->splice_off_in = (u64)off_in;
+        sqe->splice_fd_in  = fd_in;
+        sqe->splice_flags  = splice_flags;
+        return sqe;
+    }
+
+    io_uring_sqe*
+    tee(this IoUring& self, u64 user_data, FdI fd_in, FdI fd_out, u32 nbytes,
+        unsigned int splice_flags) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_TEE, user_data, fd_out);
+        sqe->addr         = 0;
+        sqe->len          = nbytes;
+        sqe->off          = 0;
+        sqe->splice_fd_in = fd_in;
+        sqe->splice_flags = splice_flags;
+        return sqe;
+    }
+
+    io_uring_sqe*
+    timeout(this IoUring& self, u64 user_data, __kernel_timespec* ts, u32 count, u32 flags) {
+        io_uring_sqe* sqe  = self.get_sqe(IORING_OP_TIMEOUT, user_data);
+        sqe->addr          = (u64)ts;
+        sqe->len           = 1;
+        sqe->off           = count;
+        sqe->timeout_flags = flags;
+        return sqe;
+    }
+
+    io_uring_sqe*
+    timeout_remove(this IoUring& self, u64 user_data, u64 timeout_user_data, u32 flags) {
+        io_uring_sqe* sqe  = self.get_sqe(IORING_OP_TIMEOUT_REMOVE, user_data);
+        sqe->addr          = timeout_user_data;
+        sqe->timeout_flags = flags;
+        return sqe;
+    }
+
+    io_uring_sqe* timeout_update(
+        this IoUring& self, u64 user_data, __kernel_timespec* ts, u64 user_data_to_update, u32 flags
+    ) {
+        io_uring_sqe* sqe  = self.get_sqe(IORING_OP_TIMEOUT_REMOVE, user_data);
+        sqe->addr          = user_data_to_update;
+        sqe->off           = (u64)ts;
+        sqe->timeout_flags = flags | IORING_TIMEOUT_UPDATE;
+        return sqe;
+    }
+
+    io_uring_sqe*
+    link_timeout(this IoUring& self, u64 user_data, __kernel_timespec* ts, u32 flags) {
+        io_uring_sqe* sqe  = self.get_sqe(IORING_OP_LINK_TIMEOUT, user_data);
+        sqe->addr          = (u64)ts;
+        sqe->len           = 1;
+        sqe->timeout_flags = flags;
+        return sqe;
+    }
+
+    io_uring_sqe*
+    files_update(this IoUring& self, u64 user_data, int* fds, u32 nr_fds, int offset) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_FILES_UPDATE, user_data, -1);
+        sqe->addr         = (u64)fds;
+        sqe->len          = nr_fds;
+        sqe->off          = (u64)offset;
+        return sqe;
+    }
+
+    io_uring_sqe*
+    fallocate(this IoUring& self, u64 user_data, FdI fd, int mode, i64 offset, u64 len) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_FALLOCATE, user_data, fd);
+        sqe->len          = (u32)mode;
+        sqe->off          = (u64)offset;
+        sqe->addr         = len;
+        return sqe;
+    }
+
+    io_uring_sqe*
+    bind(this IoUring& self, u64 user_data, FdI fd, sockaddr* addr, socklen_t addrlen) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_BIND, user_data, fd);
+        sqe->addr         = (u64)addr;
+        sqe->addr2        = 0;
+        sqe->off          = addrlen;
+        return sqe;
+    }
+
+    io_uring_sqe* listen(this IoUring& self, u64 user_data, FdI fd, int backlog) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_LISTEN, user_data, fd);
+        sqe->addr         = 0;
+        sqe->len          = (u32)backlog;
+        return sqe;
+    }
+
+    io_uring_sqe* recvmsg(this IoUring& self, u64 user_data, FdI fd, msghdr* msg, u32 flags) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_RECVMSG, user_data, fd);
+        sqe->addr         = (u64)msg;
+        sqe->len          = 1;
+        sqe->msg_flags    = flags;
+        return sqe;
+    }
+
+    io_uring_sqe* mkdir(this IoUring& self, u64 user_data, const char* path, mode_t mode) {
+        return self.mkdirat(user_data, AT_FDCWD, path, mode);
+    }
+
+    io_uring_sqe*
+    mkdirat(this IoUring& self, u64 user_data, int dfd, const char* path, mode_t mode) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_MKDIRAT, user_data, dfd);
+        sqe->addr         = (u64)path;
+        sqe->len          = (u32)mode;
+        return sqe;
+    }
+
+    io_uring_sqe*
+    symlink(this IoUring& self, u64 user_data, const char* target, const char* linkpath) {
+        return self.symlinkat(user_data, target, AT_FDCWD, linkpath);
+    }
+
+    io_uring_sqe* symlinkat(
+        this IoUring& self, u64 user_data, const char* target, int newdfd, const char* linkpath
+    ) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_SYMLINKAT, user_data, newdfd);
+        sqe->addr         = (u64)target;
+        sqe->addr2        = (u64)linkpath;
+        return sqe;
+    }
+
+    io_uring_sqe*
+    link(this IoUring& self, u64 user_data, const char* oldpath, const char* newpath, int flags) {
+        return self.linkat(user_data, AT_FDCWD, oldpath, AT_FDCWD, newpath, flags);
+    }
+
+    io_uring_sqe* linkat(
+        this IoUring& self, u64 user_data, int olddfd, const char* oldpath, int newdfd,
+        const char* newpath, int flags
+    ) {
+        io_uring_sqe* sqe   = self.get_sqe(IORING_OP_LINKAT, user_data, olddfd);
+        sqe->addr           = (u64)oldpath;
+        sqe->len            = (u32)newdfd;
+        sqe->addr2          = (u64)newpath;
+        sqe->hardlink_flags = (u32)flags;
+        return sqe;
+    }
+
+    io_uring_sqe* provide_buffers(
+        this IoUring& self, u64 user_data, void* addr, i32 len, i32 nr, i32 bgid, i32 bid
+    ) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_PROVIDE_BUFFERS, user_data, nr);
+        sqe->addr         = (u64)addr;
+        sqe->len          = (u32)len;
+        sqe->off          = (u64)bid;
+        sqe->buf_group    = (u16)bgid;
+        return sqe;
+    }
+
+    io_uring_sqe* remove_buffers(this IoUring& self, u64 user_data, i32 nr, i32 bgid) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_REMOVE_BUFFERS, user_data, nr);
+        sqe->buf_group    = (u16)bgid;
+        return sqe;
+    }
+
+    io_uring_sqe*
+    sync_file_range(this IoUring& self, u64 user_data, FdI fd, u32 len, u64 offset, int flags) {
+        io_uring_sqe* sqe     = self.get_sqe(IORING_OP_SYNC_FILE_RANGE, user_data, fd);
+        sqe->len              = len;
+        sqe->off              = offset;
+        sqe->sync_range_flags = (u32)flags;
+        return sqe;
+    }
+
+    io_uring_sqe*
+    socket(this IoUring& self, u64 user_data, int domain, int type, int protocol, u32 flags) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_SOCKET, user_data, domain);
+        sqe->off          = (u64)type;
+        sqe->len          = (u32)protocol;
+        sqe->rw_flags     = (__kernel_rwf_t)flags;
+        return sqe;
+    }
+
+    io_uring_sqe* getxattr(
+        this IoUring& self, u64 user_data, const char* name, char* value, const char* path, u32 len
+    ) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_GETXATTR, user_data);
+        sqe->addr         = (u64)name;
+        sqe->addr2        = (u64)value;
+        sqe->addr3        = (u64)path;
+        sqe->len          = len;
+        sqe->xattr_flags  = 0;
+        return sqe;
+    }
+
+    io_uring_sqe* setxattr(
+        this IoUring& self, u64 user_data, const char* name, const char* value, const char* path,
+        int flags, u32 len
+    ) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_SETXATTR, user_data);
+        sqe->addr         = (u64)name;
+        sqe->addr2        = (u64)value;
+        sqe->addr3        = (u64)path;
+        sqe->len          = len;
+        sqe->xattr_flags  = (u32)flags;
+        return sqe;
+    }
+
+    io_uring_sqe*
+    fgetxattr(this IoUring& self, u64 user_data, FdI fd, const char* name, char* value, u32 len) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_FGETXATTR, user_data, fd);
+        sqe->addr         = (u64)name;
+        sqe->addr2        = (u64)value;
+        sqe->len          = len;
+        sqe->xattr_flags  = 0;
+        return sqe;
+    }
+
+    io_uring_sqe* fsetxattr(
+        this IoUring& self, u64 user_data, FdI fd, const char* name, const char* value, int flags,
+        u32 len
+    ) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_FSETXATTR, user_data, fd);
+        sqe->addr         = (u64)name;
+        sqe->addr2        = (u64)value;
+        sqe->len          = len;
+        sqe->xattr_flags  = (u32)flags;
+        return sqe;
+    }
+
+    io_uring_sqe*
+    msg_ring(this IoUring& self, u64 user_data, int fd, u32 len, u64 data, u32 flags) {
+        io_uring_sqe* sqe   = self.get_sqe(IORING_OP_MSG_RING, user_data, fd);
+        sqe->len            = len;
+        sqe->off            = data;
+        sqe->msg_ring_flags = flags;
+        return sqe;
+    }
+
+    io_uring_sqe* msg_ring_fd(
+        this IoUring& self, u64 user_data, int fd, int source_fd, int target_fd, u64 data, u32 flags
+    ) {
+        io_uring_sqe* sqe   = self.get_sqe(IORING_OP_MSG_RING, user_data, fd);
+        sqe->addr           = (u64)IORING_MSG_SEND_FD;
+        sqe->addr3          = (u64)source_fd;
+        sqe->len            = 0;
+        sqe->off            = data;
+        sqe->msg_ring_flags = flags;
+
+        if (target_fd == static_cast<int>(IORING_FILE_INDEX_ALLOC)) target_fd--;
+
+        sqe->file_index = (u32)(target_fd + 1);
+        return sqe;
+    }
+
+    io_uring_sqe* cancel(this IoUring& self, u64 user_data, u64 cancel_user_data, int flags) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_ASYNC_CANCEL, user_data);
+        sqe->addr         = cancel_user_data;
+        sqe->cancel_flags = (u32)flags;
+        return sqe;
+    }
+
+    io_uring_sqe* cancel_fd(this IoUring& self, u64 user_data, FdI fd, u32 flags) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_ASYNC_CANCEL, user_data, fd);
+        sqe->cancel_flags = flags | IORING_ASYNC_CANCEL_FD;
+        return sqe;
+    }
+
+    io_uring_sqe* fixed_fd_install(this IoUring& self, u64 user_data, FdI fd, u32 flags) {
+        io_uring_sqe* sqe     = self.get_sqe(IORING_OP_FIXED_FD_INSTALL, user_data, fd);
+        sqe->flags            = IOSQE_FIXED_FILE;
+        sqe->install_fd_flags = flags;
+        return sqe;
+    }
+
+    io_uring_sqe* ftruncate(this IoUring& self, u64 user_data, FdI fd, i64 offset) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_FTRUNCATE, user_data, fd);
+        sqe->off          = (u64)offset;
+        return sqe;
+    }
+
+    io_uring_sqe* madvise(this IoUring& self, u64 user_data, void* addr, u32 len, int advice) {
+        io_uring_sqe* sqe   = self.get_sqe(IORING_OP_MADVISE, user_data);
+        sqe->addr           = (u64)addr;
+        sqe->len            = len;
+        sqe->fadvise_advice = (u32)advice;
+        return sqe;
+    }
+
+    io_uring_sqe* send_zc(
+        this IoUring& self, u64 user_data, FdI sockfd, const void* buf, usize len, int flags,
+        u16 zc_flags
+    ) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_SEND_ZC, user_data, sockfd);
+        sqe->addr         = (u64)buf;
+        sqe->len          = (u32)len;
+        sqe->msg_flags    = (u32)flags;
+        sqe->ioprio       = zc_flags;
+        return sqe;
+    }
+
+    io_uring_sqe*
+    sendmsg_zc(this IoUring& self, u64 user_data, FdI fd, const msghdr* msg, u32 flags) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_SENDMSG_ZC, user_data, fd);
+        sqe->addr         = (u64)msg;
+        sqe->len          = 1;
+        sqe->msg_flags    = flags;
+        return sqe;
+    }
+
+    io_uring_sqe*
+    recv_multishot(this IoUring& self, u64 user_data, FdI sockfd, void* buf, usize len, int flags) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_RECV, user_data, sockfd);
+        sqe->addr         = (u64)buf;
+        sqe->len          = (u32)len;
+        sqe->msg_flags    = (u32)flags;
+        sqe->ioprio |= IORING_RECV_MULTISHOT;
+        return sqe;
+    }
+
+    io_uring_sqe* accept_multishot(
+        this IoUring& self, u64 user_data, FdI fd, sockaddr* addr, socklen_t* addrlen, int flags
+    ) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_ACCEPT, user_data, fd);
+        sqe->addr         = (u64)addr;
+        sqe->addr2        = (u64)addrlen;
+        sqe->accept_flags = (u32)flags;
+        sqe->ioprio |= IORING_ACCEPT_MULTISHOT;
+        return sqe;
+    }
+
+    io_uring_sqe* waitid(
+        this IoUring& self, u64 user_data, int idtype, FdI id, siginfo_t* infop, int options,
+        u32 flags
+    ) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_WAITID, user_data, id);
+        sqe->addr2        = (u64)infop;
+        sqe->len          = (u32)idtype;
+        sqe->waitid_flags = flags;
+        sqe->file_index   = (u32)options;
+        return sqe;
+    }
+
+    io_uring_sqe* futex_wait(
+        this IoUring& self, u64 user_data, u32* futex, u64 val, u64 mask, int futex_flags, u32 flags
+    ) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_FUTEX_WAIT, user_data, futex_flags);
+        sqe->addr         = (u64)futex;
+        sqe->len          = 0;
+        sqe->off          = val;
+        sqe->addr3        = mask;
+        sqe->futex_flags  = flags;
+        return sqe;
+    }
+
+    io_uring_sqe* futex_wake(
+        this IoUring& self, u64 user_data, u32* futex, u64 val, u64 mask, int futex_flags, u32 flags
+    ) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_FUTEX_WAKE, user_data, futex_flags);
+        sqe->addr         = (u64)futex;
+        sqe->len          = 0;
+        sqe->off          = val;
+        sqe->addr3        = mask;
+        sqe->futex_flags  = flags;
+        return sqe;
+    }
+
+    io_uring_sqe* futex_waitv(
+        this IoUring& self, u64 user_data, struct futex_waitv* futex, u32 nr_futex, u32 flags
+    ) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_FUTEX_WAITV, user_data);
+        sqe->addr         = (u64)futex;
+        sqe->len          = nr_futex;
+        sqe->futex_flags  = flags;
+        return sqe;
+    }
+
+    io_uring_sqe* close(this IoUring& self, u64 user_data, FdI fd) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_CLOSE, user_data, fd);
+        return sqe;
+    }
+
+    io_uring_sqe* close_direct(this IoUring& self, u64 user_data, u32 file_index) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_CLOSE, user_data, 0);
+        if (file_index == static_cast<u32>(IORING_FILE_INDEX_ALLOC)) file_index--;
+        sqe->file_index = file_index + 1;
         return sqe;
     }
 };

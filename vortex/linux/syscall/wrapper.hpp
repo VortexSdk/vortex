@@ -1,6 +1,7 @@
 // Warning: This file is auto generated. Don't edit this file directly!
 
 #pragma once
+#include "syscall_impl.hpp"
 #include "wrapperHelper.hpp"
 
 // NOLINTBEGIN
@@ -219,7 +220,7 @@ static SysRes<usize> quotactl(unsigned int cmd, const char *special, qid_t id, v
 static SysRes<usize> quotactl_fd(FdU fd, unsigned int cmd, qid_t id, void *addr) {
     return syscall(__NR_quotactl_fd, fd, cmd, id, addr);
 }
-static SysRes<usize> getdents64(FdU fd, struct linux_dirent64 *dirent, unsigned int count) {
+static SysRes<usize> getdents64(FdU fd, linux_dirent64 *dirent, unsigned int count) {
     return syscall(__NR_getdents64, fd, dirent, count);
 }
 static SysRes<off_t> lseek(FdU fd, off_t offset, unsigned int whence) {
@@ -430,16 +431,16 @@ static SysRes<usize> syslog(int type, char *buf, int len) {
 static SysRes<usize> ptrace(long request, long pid, void *addr, unsigned long data) {
     return syscall(__NR_ptrace, request, pid, addr, data);
 }
-static SysRes<usize> sched_setparam(pid_t pid, struct sched_param *param) {
+static SysRes<usize> sched_setparam(pid_t pid, sched_param *param) {
     return syscall(__NR_sched_setparam, pid, param);
 }
-static SysRes<usize> sched_setscheduler(pid_t pid, int policy, struct sched_param *param) {
+static SysRes<usize> sched_setscheduler(pid_t pid, int policy, sched_param *param) {
     return syscall(__NR_sched_setscheduler, pid, policy, param);
 }
 static SysRes<usize> sched_getscheduler(pid_t pid) {
     return syscall(__NR_sched_getscheduler, pid);
 }
-static SysRes<usize> sched_getparam(pid_t pid, struct sched_param *param) {
+static SysRes<usize> sched_getparam(pid_t pid, sched_param *param) {
     return syscall(__NR_sched_getparam, pid, param);
 }
 static SysRes<usize> sched_setaffinity(pid_t pid, unsigned int len, unsigned long *user_mask_ptr) {
@@ -577,7 +578,7 @@ static SysRes<usize>
 prctl(int option, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5) {
     return syscall(__NR_prctl, option, arg2, arg3, arg4, arg5);
 }
-static SysRes<usize> getcpu(unsigned *cpu, unsigned *node, struct getcpu_cache *cache) {
+static SysRes<usize> getcpu(unsigned *cpu, unsigned *node, getcpu_cache *cache) {
     return syscall(__NR_getcpu, cpu, node, cache);
 }
 static SysRes<usize> gettimeofday(struct __kernel_old_timeval *tv, struct timezone *tz) {
@@ -712,10 +713,10 @@ static SysRes<usize> getsockopt(FdI fd, int level, int optname, char *optval, in
 static SysRes<usize> shutdown(int a, int b) {
     return syscall(__NR_shutdown, a, b);
 }
-static SysRes<usize> sendmsg(FdI fd, struct user_msghdr *msg, unsigned flags) {
+static SysRes<usize> sendmsg(FdI fd, user_msghdr *msg, unsigned flags) {
     return syscall(__NR_sendmsg, fd, msg, flags);
 }
-static SysRes<usize> recvmsg(FdI fd, struct user_msghdr *msg, unsigned flags) {
+static SysRes<usize> recvmsg(FdI fd, user_msghdr *msg, unsigned flags) {
     return syscall(__NR_recvmsg, fd, msg, flags);
 }
 static SysRes<usize> readahead(FdI fd, loff_t offset, usize count) {
@@ -840,8 +841,7 @@ static SysRes<usize> accept4(int a, sockaddr *b, int *c, int d) {
     return syscall(__NR_accept4, a, b, c, d);
 }
 static SysRes<usize> recvmmsg(
-    FdI fd, struct mmsghdr *msg, unsigned int vlen, unsigned flags,
-    struct __kernel_timespec *timeout
+    FdI fd, mmsghdr *msg, unsigned int vlen, unsigned flags, struct __kernel_timespec *timeout
 ) {
     return syscall(__NR_recvmmsg, fd, msg, vlen, flags, timeout);
 }
@@ -863,10 +863,10 @@ static SysRes<usize> fanotify_mark(
     return syscall(__NR_fanotify_mark, fanotify_fd, flags, mask_1, mask_2, dfd, pathname);
 }
 static SysRes<usize>
-name_to_handle_at(FdI dfd, const char *name, struct file_handle *handle, void *mnt_id, int flag) {
+name_to_handle_at(FdI dfd, const char *name, file_handle *handle, void *mnt_id, int flag) {
     return syscall(__NR_name_to_handle_at, dfd, name, handle, mnt_id, flag);
 }
-static SysRes<usize> open_by_handle_at(FdI mountdirfd, struct file_handle *handle, int flags) {
+static SysRes<usize> open_by_handle_at(FdI mountdirfd, file_handle *handle, int flags) {
     return syscall(__NR_open_by_handle_at, mountdirfd, handle, flags);
 }
 static SysRes<usize> clock_adjtime(clockid_t which_clock, struct __kernel_timex *tx) {
@@ -881,7 +881,7 @@ static SysRes<usize> setns(FdI fd, int nstype) {
 static SysRes<usize> pidfd_open(pid_t pid, unsigned int flags) {
     return syscall(__NR_pidfd_open, pid, flags);
 }
-static SysRes<usize> sendmmsg(FdI fd, struct mmsghdr *msg, unsigned int vlen, unsigned flags) {
+static SysRes<usize> sendmmsg(FdI fd, mmsghdr *msg, unsigned int vlen, unsigned flags) {
     return syscall(__NR_sendmmsg, fd, msg, vlen, flags);
 }
 static SysRes<usize> process_vm_readv(
@@ -967,7 +967,7 @@ static SysRes<usize> pkey_free(int pkey) {
     return syscall(__NR_pkey_free, pkey);
 }
 static SysRes<usize>
-statx(FdI dfd, const char *path, unsigned flags, unsigned mask, struct statx *buffer) {
+statx(FdI dfd, const char *path, unsigned flags, unsigned mask, statx_t *buffer) {
     return syscall(__NR_statx, dfd, path, flags, mask, buffer);
 }
 static SysRes<usize> rseq(struct rseq *rseq, u32 rseq_len, int flags, u32 sig) {
@@ -1065,9 +1065,6 @@ static SysRes<usize> poll(struct pollfd *ufds, unsigned int nfds, int timeout) {
 }
 static SysRes<usize> epoll_wait(FdI epfd, struct epoll_event *events, int maxevents, int timeout) {
     return syscall(__NR_epoll_wait, epfd, events, maxevents, timeout);
-}
-static SysRes<usize> ustat(unsigned dev, struct ustat *ubuf) {
-    return syscall(__NR_ustat, dev, ubuf);
 }
 static SysRes<pid_t> vfork() {
     return syscall(__NR_vfork).unsafe_cast<pid_t>();

@@ -3,9 +3,8 @@
 #include "../../diagnostics.hpp"
 #include "../../metap/metap.hpp"
 #include "../../numbers.hpp"
-#include "syscall.hpp"
 
-DIAG_IGNORE_CLANG_PUSH("-Weverything")
+DIAG_IGNORE_CLANG_PUSH("-Weverything", "-Wreserved-identifier")
 DIAG_IGNORE_GCC_PUSH("-Wall", "-Wextra")
 
 #include <asm-generic/poll.h>
@@ -28,7 +27,6 @@ DIAG_IGNORE_GCC_PUSH("-Wall", "-Wextra")
 #include <linux/msg.h>
 #include <linux/openat2.h>
 #include <linux/perf_event.h>
-#include <linux/posix_types.h>
 #include <linux/resource.h>
 #include <linux/rseq.h>
 #include <linux/sched.h>
@@ -45,6 +43,8 @@ DIAG_IGNORE_GCC_PUSH("-Wall", "-Wextra")
 #include <linux/uio.h>
 #include <linux/utime.h>
 #include <linux/utsname.h>
+//
+#include <linux/posix_types.h>
 
 using FdI          = int;
 using FdL          = long;
@@ -61,11 +61,16 @@ using mqd_t        = __kernel_mqd_t;
 using key_t        = __kernel_key_t;
 using timer_t      = __kernel_timer_t;
 using clockid_t    = __kernel_clockid_t;
+using mode_t       = __kernel_mode_t;
 using umode_t      = unsigned short;
 using sigset_t     = unsigned long;
 using key_serial_t = i32;
+using socklen_t    = u32;
+using id_t         = u32;
 using rwf_t        = __kernel_rwf_t;
 using sockaddr     = __kernel_sockaddr_storage;
+
+typedef struct statx statx_t;
 
 template <typename From, typename To> To fd_cast(From value) {
     static_assert(
@@ -84,30 +89,24 @@ template <typename From, typename To> To fd_cast(From value) {
     return static_cast<To>(value);
 }
 
-struct __aio_sigset {
+typedef struct {
     const sigset_t *sigmask;
     usize sigsetsize;
-};
-struct sched_param {
+} __aio_sigset;
+typedef struct {
     int sched_priority;
-};
-struct getcpu_cache {
+} sched_param;
+typedef struct {
     unsigned long blob [128 / sizeof(long)];
-};
-struct linux_dirent64 {
+} getcpu_cache;
+typedef struct {
     u64 d_ino;
     i64 d_off;
     unsigned short d_reclen;
     unsigned char d_type;
     char d_name [];
-};
-struct ustat {
-    __kernel_daddr_t f_tfree;
-    unsigned long f_tinode;
-    char f_fname [6];
-    char f_fpack [6];
-};
-struct user_msghdr {
+} linux_dirent64;
+typedef struct {
     /// ptr to socket address structure
     void *msg_name;
     /// size of socket address structure
@@ -122,16 +121,16 @@ struct user_msghdr {
     __kernel_size_t msg_controllen;
     /// flags on received message
     unsigned int msg_flags;
-};
-struct mmsghdr {
+} user_msghdr;
+typedef struct {
     user_msghdr msg_hdr;
     unsigned int msg_len;
-};
-struct file_handle {
+} mmsghdr;
+typedef struct {
     u32 handle_bytes;
     int handle_type;
     /// file identifier
     unsigned char f_handle [] __counted_by(handle_bytes);
-};
+} file_handle;
 
 DIAG_IGNORE_POP
