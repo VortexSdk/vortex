@@ -5,6 +5,10 @@
 #include "../../numbers.hpp"
 #include "../../panic.hpp"
 
+DIAG_IGNORE_PUSH("-Weverything")
+#include <linux/io_uring.h>
+DIAG_IGNORE_POP
+
 enum class SysResKind : u8 {
     /// No error occurred.
     /// Same code used for `NSROK`.
@@ -317,10 +321,20 @@ enum class SysResKind : u8 {
     NSRCNAMELOOP          = 177,
 };
 
+struct CqeRes {
+    u64 user_data{0}; /* sqe->user_data value passed back */
+    u32 res{0};       /* result code for this event */
+    u32 flags{0};
+
+    CqeRes() : user_data(0), res(0), flags(0) {}
+    CqeRes(u64 _user_data, u32 _res, u32 _flags)
+        : user_data(_user_data), res(_res), flags(_flags) {}
+};
+
 template <typename T> struct SysRes {
   private:
     T res;
-    bool safety_called{false};
+    bool safety_called;
 
     SysRes(T r, SysResKind k) : res(move(r)), kind(k) {}
 
@@ -330,7 +344,9 @@ template <typename T> struct SysRes {
     }
 
   public:
-    SysResKind kind{SysResKind::SUCCESS};
+    SysResKind kind;
+
+    SysRes() : res(move(T())), safety_called(false), kind(SysResKind::SUCCESS) {}
 
     static SysRes<T> from_kind(T r, SysResKind k) {
         return SysRes<T>(move(r), k);
@@ -357,17 +373,26 @@ template <typename T> struct SysRes {
         );
     }
 
+    __attribute__((no_sanitize("implicit-integer-sign-change", "unsigned-integer-overflow")))
+    SysRes(io_uring_cqe e) {
+        static_assert(is_same<T, CqeRes>::value, "T is not CqeRes");
+
+        const i64 signed_r = static_cast<i64>(e.res);
+        kind = static_cast<SysResKind>((signed_r > -4096 && signed_r < 0) ? -signed_r : 0);
+        res  = move(CqeRes(e.user_data, static_cast<u32>(e.res), e.flags));
+    }
+
     [[nodiscard]]
     bool is_ok(this SysRes &self) {
         self.safety_called = true;
-
-        return self.kind == SysResKind::SUCCESS;
+        if (self.kind == SysResKind::SUCCESS) [[likely]] {
+            return true;
+        } else return false;
     }
 
     [[nodiscard]]
     bool is_err(this SysRes &self) {
         self.safety_called = true;
-
         return !self.is_ok();
     }
 
@@ -393,7 +418,10 @@ template <typename T> struct SysRes {
     }
 
     template <typename Y> SysRes<Y> return_err(this const SysRes &self) {
-        return self.unsafe_swap(move(Y()));
+        return self.template unsafe_swap<Y>(move(Y()));
+    }
+    template <typename Y> SysRes<Y> return_err(this const SysRes &self, Y d) {
+        return self.template unsafe_swap<Y>(move(d));
     }
 
     T unsafe_unwrap(this SysRes &self) {
@@ -410,3 +438,36 @@ template <typename T> struct SysRes {
         return move(self.unsafe_unwrap());
     }
 };
+
+using IoUringRes = SysRes<CqeRes>;
+
+#define PP_CONCAT_(A, B)         A##B
+#define PP_CONCAT(A, B)          PP_CONCAT_(A, B)
+#define UNIQUE_NAME(prefix, ctr) PP_CONCAT(prefix, PP_CONCAT(_, PP_CONCAT(__LINE__, ctr)))
+
+#define __TRY1_INNER(expr, ctr)                                                                    \
+    ({                                                                                             \
+        auto UNIQUE_NAME(try1, ctr) = (expr);                                                      \
+        if (UNIQUE_NAME(try1, ctr).is_err()) [[unlikely]]                                          \
+            return UNIQUE_NAME(try1, ctr);                                                         \
+        ::vortex::move(UNIQUE_NAME(try1, ctr).unwrap());                                           \
+    })
+#define __TRY2_INNER(expr, t, ctr)                                                                 \
+    ({                                                                                             \
+        auto UNIQUE_NAME(try2, ctr) = (expr);                                                      \
+        if (UNIQUE_NAME(try2, ctr).is_err()) [[unlikely]]                                          \
+            return UNIQUE_NAME(try2, ctr).template return_err<t>();                                \
+        ::vortex::move(UNIQUE_NAME(try2, ctr).unwrap());                                           \
+    })
+#define __TRY3_INNER(expr, t, e, ctr)                                                              \
+    ({                                                                                             \
+        auto UNIQUE_NAME(try3, ctr) = (expr);                                                      \
+        if (UNIQUE_NAME(try3, ctr) == reinterpret_cast<decltype(UNIQUE_NAME(try3, ctr))>(0))       \
+            [[unlikely]]                                                                           \
+            return ::vortex::SysRes<t>::from_err(e);                                               \
+        ::vortex::move(UNIQUE_NAME(try3, ctr));                                                    \
+    })
+#define TRY1(...) __TRY1_INNER(__VA_ARGS__, __COUNTER__)
+#define TRY2(...) __TRY2_INNER(__VA_ARGS__, __COUNTER__)
+#define TRY3(...) __TRY3_INNER(__VA_ARGS__, __COUNTER__)
+#define TRY(...)  VFUNC(TRY, __VA_ARGS__)

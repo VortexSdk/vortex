@@ -62,4 +62,5 @@ sysinfo.h
 fcntl.h
 ipc.h
 ipcbuf.h
+libc-compat.h
 

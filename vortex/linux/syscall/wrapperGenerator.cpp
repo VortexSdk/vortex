@@ -112,6 +112,7 @@ std::unordered_map<std::string, std::string> syscall_arg_type_map = {
     {"struct getcpu_cache *",       "getcpu_cache *"      },
     {"struct user_msghdr *",        "user_msghdr *"       },
     {"struct file_handle *",        "file_handle *"       },
+    {"struct __kernel_timespec *",  "timespec *"          },
     {"const struct __aio_sigset *", "const __aio_sigset *"},
 };
 std::unordered_map<std::string, std::string> syscall_ret_type_map = {

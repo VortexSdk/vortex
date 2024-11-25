@@ -14,7 +14,7 @@ template <typename T> struct Vec {
     Vec &operator=(const Vec &t) = delete;
     Vec() : len(0), cap(0), ptr(null<T>()) {}
     Vec(Vec &&s) noexcept
-        : len(exchange(s.len, U32_0)), cap(exchange(s.cap, U32_0)),
+        : len(exchange(s.len, 0_u32)), cap(exchange(s.cap, 0_u32)),
           ptr(exchange(s.ptr, null<T>())) {}
 
     template <AllocatorStrategy U> static SysRes<Vec<T>> init(Allocator<U> *a, u32 capacity = 8) {
@@ -63,7 +63,7 @@ template <typename T> struct Vec {
         if (resize_res.is_empty()) return true;
 
         self.ptr = resize_res.ptr;
-        self.cap = new_cap;
+        self.cap = static_cast<u32>(new_cap);
         return false;
     }
 
@@ -74,6 +74,10 @@ template <typename T> struct Vec {
         self.ptr [self.len] = move(val);
         self.len++;
         return false;
+    }
+
+    template <AllocatorStrategy U> bool resize(this Vec<T> &self, Allocator<U> *a, usize new_cap) {
+        return self.grow(a, new_cap);
     }
 
     template <AllocatorStrategy U>

@@ -12,15 +12,15 @@ struct AllocatorState {
     AllocatorState() = default;
     AllocatorState(usize _len, usize _pos, u8 *_ptr) : len(_len), pos(_pos), ptr(_ptr) {}
     AllocatorState(AllocatorState &&as) noexcept
-        : len(exchange(as.len, USIZE_0)), pos(exchange(as.pos, USIZE_0)),
+        : len(exchange(as.len, 0_usize)), pos(exchange(as.pos, 0_usize)),
           ptr(exchange(as.ptr, null<u8>())) {}
 };
 
 template <typename T>
 concept AllocatorStrategy = requires(T t) {
-    { t.free(null<AllocatorState>(), NULL, USIZE_0, USIZE_0) } -> same_as<void>;
-    { t.alloc(null<AllocatorState>(), USIZE_0, USIZE_0) } -> same_as<void *>;
-    { t.resize(null<AllocatorState>(), NULL, USIZE_0, USIZE_0, USIZE_0) } -> same_as<void *>;
+    { t.free(null<AllocatorState>(), NULL, 0_usize, 0_usize) } -> same_as<void>;
+    { t.alloc(null<AllocatorState>(), 0_usize, 0_usize) } -> same_as<void *>;
+    { t.resize(null<AllocatorState>(), NULL, 0_usize, 0_usize, 0_usize) } -> same_as<void *>;
 };
 
 template <AllocatorStrategy T> struct Allocator {
@@ -95,3 +95,5 @@ template <AllocatorStrategy T> struct Allocator {
         return self.template free<E>(Slice<E>::init(1, b));
     }
 };
+
+#define TRY_ALLOC(expr, t) TRY(expr, t, SysResKind::NOMEM)

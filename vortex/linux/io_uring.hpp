@@ -5,8 +5,11 @@
 #include "../mem/utils.hpp"
 #include "../metap/metap.hpp"
 #include "../numbers.hpp"
+#include "linux/io_uring.h"
 #include "syscall/syscall.hpp"
 #include "syscall/wrapperHelper.hpp"
+#include "vortex/mem/Allocator.hpp"
+#include "vortex/Vec.hpp"
 #include <asm-generic/mman-common.h>
 
 inline u32* off_cast(u8* mem, u32 idx) {
@@ -14,6 +17,36 @@ inline u32* off_cast(u8* mem, u32 idx) {
 }
 
 DIAG_IGNORE_CLANG_PUSH("-Wold-style-cast", "-Wcast-align")
+
+#define IO_TRY_ADD(expr, t) ({ TRY(expr, t, SysResKind::NOMEM); })
+#define __IO_TRY_ADD_AND_GET_INNER(r, expr, t, ctr)                                                \
+    ({                                                                                             \
+        IO_TRY_ADD(expr, t);                                                                       \
+        auto UNIQUE_NAME(io_uring_submitted, ctr) = TRY(r->submit_and_get_one(), t);               \
+        ::vortex::move(TRY(::vortex::IoUringRes(move(UNIQUE_NAME(io_uring_submitted, ctr))), t));  \
+    })
+#define __IO_TRY_ALL_AND_SUBMIT_INNER(r, count, t, ctr)                                            \
+    ({                                                                                             \
+        auto UNIQUE_NAME(io_uring_submitted, ctr) =                                                \
+            TRY(r->submit_and_wait(static_cast<u32>(count)), t);                                   \
+        IoUringRes UNIQUE_NAME(io_uring_arr, ctr) [count];                                         \
+        for (usize UNIQUE_NAME(io_uring_i, ctr) = 0;                                               \
+             UNIQUE_NAME(io_uring_i, ctr) < UNIQUE_NAME(io_uring_submitted, ctr);                  \
+             UNIQUE_NAME(io_uring_i, ctr)++) {                                                     \
+            UNIQUE_NAME(io_uring_arr, ctr)                                                         \
+            [UNIQUE_NAME(io_uring_i, ctr)] =                                                       \
+                ::vortex::IoUringRes(*r->cq.cqes [(*r->cq.head) + UNIQUE_NAME(io_uring_i, ctr)]);  \
+            if (UNIQUE_NAME(io_uring_arr, ctr) [UNIQUE_NAME(io_uring_i, ctr)].is_err()) {          \
+                r->cq_advance(static_cast<u32>(UNIQUE_NAME(io_uring_i, ctr)));                     \
+                return UNIQUE_NAME(io_uring_arr, ctr) [UNIQUE_NAME(io_uring_i, ctr)]               \
+                    .return_err<t>();                                                              \
+            }                                                                                      \
+        }                                                                                          \
+        r->cq_advance(static_cast<u32>(UNIQUE_NAME(io_uring_submitted, ctr)));                     \
+        UNIQUE_NAME(io_uring_arr, ctr);                                                            \
+    })
+#define IO_TRY_ADD_AND_GET(r, expr, t)     __IO_TRY_ADD_AND_GET_INNER(r, expr, t, __COUNTER__)
+#define IO_TRY_ALL_AND_SUBMIT(r, count, t) __IO_TRY_ALL_AND_SUBMIT_INNER(r, count, t, __COUNTER__)
 
 struct SubmissionQueue {
     u32 mask{0};
@@ -41,20 +74,20 @@ struct SubmissionQueue {
     SubmissionQueue(const SubmissionQueue& t)            = delete;
     SubmissionQueue& operator=(const SubmissionQueue& t) = delete;
     SubmissionQueue(SubmissionQueue&& s) noexcept
-        : mask(exchange(s.mask, U32_0)), array(move(s.array)), head(exchange(s.head, null<u32>())),
+        : mask(exchange(s.mask, 0_u32)), array(move(s.array)), head(exchange(s.head, null<u32>())),
           tail(exchange(s.tail, null<u32>())), flags(exchange(s.flags, null<u32>())),
-          dropped(exchange(s.dropped, null<u32>())), sqe_head(exchange(s.sqe_head, U32_0)),
-          sqe_tail(exchange(s.sqe_tail, U32_0)), mem(move(s.mem)), sqes(move(s.sqes)) {}
+          dropped(exchange(s.dropped, null<u32>())), sqe_head(exchange(s.sqe_head, 0_u32)),
+          sqe_tail(exchange(s.sqe_tail, 0_u32)), mem(move(s.mem)), sqes(move(s.sqes)) {}
     SubmissionQueue& operator=(SubmissionQueue&& other) noexcept {
         if (this != &other) {
-            mask     = exchange(other.mask, U32_0);
+            mask     = exchange(other.mask, 0_u32);
             array    = move(other.array);
             head     = exchange(other.head, null<u32>());
             tail     = exchange(other.tail, null<u32>());
             flags    = exchange(other.flags, null<u32>());
             dropped  = exchange(other.dropped, null<u32>());
-            sqe_head = exchange(other.sqe_head, U32_0);
-            sqe_tail = exchange(other.sqe_tail, U32_0);
+            sqe_head = exchange(other.sqe_head, 0_u32);
+            sqe_tail = exchange(other.sqe_tail, 0_u32);
             mem      = move(other.mem);
             sqes     = move(other.sqes);
         }
@@ -68,25 +101,25 @@ struct SubmissionQueue {
             max(off.array + p.sq_entries * sizeof(u32),
                 p.cq_off.cqes + p.cq_entries * sizeof(io_uring_sqe));
 
-        auto m_r = mmap(
-            NULL, mem_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_POPULATE, fd,
-            IORING_OFF_SQ_RING
-        );
-        if (m_r.is_err()) return m_r.return_err<SubmissionQueue>();
-        auto m    = m_r.unwrap();
-
-        auto sqes = mmap(
-                        NULL, sqes_size * sizeof(io_uring_sqe), PROT_READ | PROT_WRITE,
-                        MAP_SHARED | MAP_POPULATE, fd, IORING_OFF_SQES
-        )
-                        .unsafe_cast<io_uring_sqe*>();
-        if (sqes.is_err()) return sqes.return_err<SubmissionQueue>();
+        auto m =
+            TRY(mmap(
+                    NULL, mem_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_POPULATE, fd,
+                    IORING_OFF_SQ_RING
+                ),
+                SubmissionQueue);
+        auto sqes =
+            TRY(mmap(
+                    NULL, sqes_size * sizeof(io_uring_sqe), PROT_READ | PROT_WRITE,
+                    MAP_SHARED | MAP_POPULATE, fd, IORING_OFF_SQES
+                )
+                    .unsafe_cast<io_uring_sqe*>(),
+                SubmissionQueue);
 
         return SysRes<SubmissionQueue>::from_successful(SubmissionQueue(
             *off_cast(m, off.ring_mask), Slice<u32>::init(p.sq_entries, off_cast(m, off.array)),
             off_cast(m, off.head), off_cast(m, off.tail), off_cast(m, off.dropped),
             off_cast(m, off.flags), 0, 0, Slice<u8>::init(mem_size, m),
-            Slice<io_uring_sqe>::init(sqes_size, sqes.unwrap())
+            Slice<io_uring_sqe>::init(sqes_size, sqes)
         ));
     }
 
@@ -110,12 +143,12 @@ struct CompletionQueue {
     CompletionQueue(const CompletionQueue& t)            = delete;
     CompletionQueue& operator=(const CompletionQueue& t) = delete;
     CompletionQueue(CompletionQueue&& s) noexcept
-        : mask(exchange(s.mask, U32_0)), head(exchange(s.head, null<u32>())),
+        : mask(exchange(s.mask, 0_u32)), head(exchange(s.head, null<u32>())),
           tail(exchange(s.tail, null<u32>())), overflow(exchange(s.overflow, null<u32>())),
           cqes(move(s.cqes)) {}
     CompletionQueue& operator=(CompletionQueue&& other) noexcept {
         if (this != &other) {
-            mask     = exchange(other.mask, U32_0);
+            mask     = exchange(other.mask, 0_u32);
             head     = exchange(other.head, null<u32>());
             tail     = exchange(other.tail, null<u32>());
             overflow = exchange(other.overflow, null<u32>());
@@ -151,13 +184,13 @@ struct IoUring {
     IoUring(const IoUring& t)            = delete;
     IoUring& operator=(const IoUring& t) = delete;
     IoUring(IoUring&& i) noexcept
-        : io_fd(exchange(i.io_fd, static_cast<FdL>(-1))), features(exchange(i.features, U32_0)),
-          setup_flags(exchange(i.setup_flags, U32_0)), sq(move(i.sq)), cq(move(i.cq)) {}
+        : io_fd(exchange(i.io_fd, static_cast<FdL>(-1))), features(exchange(i.features, 0_u32)),
+          setup_flags(exchange(i.setup_flags, 0_u32)), sq(move(i.sq)), cq(move(i.cq)) {}
     IoUring& operator=(IoUring&& other) noexcept {
         if (this != &other) {
             io_fd       = exchange(other.io_fd, static_cast<FdL>(-1));
-            features    = exchange(other.features, U32_0);
-            setup_flags = exchange(other.setup_flags, U32_0);
+            features    = exchange(other.features, 0_u32);
+            setup_flags = exchange(other.setup_flags, 0_u32);
             sq          = move(other.sq);
             cq          = move(other.cq);
         }
@@ -191,9 +224,7 @@ struct IoUring {
         p.sq_thread_cpu   = thread_cpu;
         p.sq_thread_idle  = thread_idle;
 
-        auto r            = io_uring_setup(entries, &p);
-        if (r.is_err()) return r.return_err<IoUring>();
-        self.io_fd = static_cast<FdL>(r.unwrap());
+        self.io_fd        = static_cast<FdL>(TRY(io_uring_setup(entries, &p), IoUring));
 
         if (!is_supported(p.features)) {
             self.close_fd();
@@ -203,7 +234,7 @@ struct IoUring {
         auto sq_r = SubmissionQueue::init(static_cast<FdUL>(self.io_fd), p);
         if (sq_r.is_err()) {
             self.close_fd();
-            return r.return_err<IoUring>();
+            return sq_r.return_err<IoUring>();
         }
 
         self.features = p.features;
@@ -292,8 +323,8 @@ struct IoUring {
         u32 head = __atomic_load_n(self.sq.head, __ATOMIC_ACQUIRE);
         u32 next = self.sq.sqe_tail + 1;
 
-        if (next - head > self.sq.sqes.len) {
-            return reinterpret_cast<io_uring_sqe*>(NULL);
+        if (next - head > self.sq.sqes.len) [[unlikely]] {
+            return null<io_uring_sqe>();
         }
 
         auto* sqe        = &self.sq.sqes.ptr [static_cast<usize>(self.sq.sqe_tail & self.sq.mask)];
@@ -305,6 +336,51 @@ struct IoUring {
         return sqe;
     }
 
+    SysRes<IoUringRes> get_cqe(this IoUring& self) {
+        if (self.cq_ready() == 0) [[unlikely]]
+            return SysRes<IoUringRes>::from_err(SysResKind::INPROGRESS);
+
+        const auto cqe = IoUringRes(*self.cq.cqes [*self.cq.head]);
+        self.cq_advance(1);
+
+        return SysRes<IoUringRes>::from_successful(cqe);
+    }
+
+    template <AllocatorStrategy U>
+    SysRes<Vec<IoUringRes>> submit_and_get(this IoUring& self, Allocator<U>* a, u32 wait_nr) {
+        auto submitted = TRY(self.submit_and_wait(wait_nr), Vec<IoUringRes>);
+        auto v         = TRY(Vec<IoUringRes>::init(a, submitted), Vec<IoUringRes>);
+
+        for (usize i = 0; i < submitted; i++) {
+            const auto push_r = v.push(a, IoUringRes(*self.cq.cqes [(*self.cq.head) + i]));
+            if (push_r) {
+                self.cq_advance(static_cast<u32>(i));
+                return SysRes<Vec<IoUringRes>>::from_err(SysResKind::NOMEM);
+            }
+        }
+        self.cq_advance(static_cast<u32>(submitted));
+
+        return SysRes<Vec<io_uring_cqe>>::from_successful(v);
+    }
+
+    template <usize wait_nr> SysRes<IoUringRes*> submit_and_get(this IoUring& self) {
+        IoUringRes arr [wait_nr];
+        auto submitted = TRY(self.submit_and_wait(wait_nr), IoUringRes*);
+
+        for (usize i = 0; i < submitted; i++)
+            arr [i] = IoUringRes(*self.cq.cqes [(*self.cq.head) + i]);
+        self.cq_advance(static_cast<u32>(submitted));
+
+        return SysRes<IoUringRes*>::from_successful(arr);
+    }
+
+    SysRes<IoUringRes> submit_and_get_one(this IoUring& self) {
+        auto r = self.submit_and_get<1>();
+        if (r.is_err()) return r.return_err<IoUringRes>();
+
+        return SysRes<IoUringRes>::from_successful(r.unwrap() [0]);
+    }
+
     io_uring_sqe* nop(this IoUring& self, u64 user_data) {
         return self.get_sqe(IORING_OP_NOP, user_data);
     }
@@ -312,9 +388,10 @@ struct IoUring {
     io_uring_sqe*
     pread(this IoUring& self, u64 user_data, FdI fd, void* buf, usize count, off_t offset) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_READ, user_data, fd);
-        sqe->addr         = (u64)buf;
-        sqe->len          = (u32)count;
-        sqe->off          = (u64)offset;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr = (u64)buf;
+        sqe->len  = (u32)count;
+        sqe->off  = (u64)offset;
         return sqe;
     }
 
@@ -325,9 +402,10 @@ struct IoUring {
     io_uring_sqe*
     pwrite(this IoUring& self, u64 user_data, FdI fd, const void* buf, usize count, off_t offset) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_WRITE, user_data, fd);
-        sqe->addr         = (u64)buf;
-        sqe->len          = (u32)count;
-        sqe->off          = (u64)offset;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr = (u64)buf;
+        sqe->len  = (u32)count;
+        sqe->off  = (u64)offset;
         return sqe;
     }
 
@@ -340,10 +418,11 @@ struct IoUring {
         off_t offset, rwf_t flags
     ) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_READV, user_data, fd);
-        sqe->rw_flags     = (__kernel_rwf_t)flags;
-        sqe->len          = iovcnt;
-        sqe->addr         = (u64)iov;
-        sqe->off          = (u64)offset;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->rw_flags = (__kernel_rwf_t)flags;
+        sqe->len      = iovcnt;
+        sqe->addr     = (u64)iov;
+        sqe->off      = (u64)offset;
         return sqe;
     }
 
@@ -363,10 +442,11 @@ struct IoUring {
         off_t offset, rwf_t flags
     ) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_WRITEV, user_data, fd);
-        sqe->rw_flags     = (__kernel_rwf_t)flags;
-        sqe->len          = iovcnt;
-        sqe->addr         = (u64)iov;
-        sqe->off          = (u64)offset;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->rw_flags = (__kernel_rwf_t)flags;
+        sqe->len      = iovcnt;
+        sqe->addr     = (u64)iov;
+        sqe->off      = (u64)offset;
         return sqe;
     }
 
@@ -388,21 +468,24 @@ struct IoUring {
     io_uring_sqe* poll_add(this IoUring& self, u64 user_data, FdI fd, u32 poll_mask) {
         static_assert(__BYTE_ORDER == __LITTLE_ENDIAN, "Unsupported endianness!");
 
-        io_uring_sqe* sqe  = self.get_sqe(IORING_OP_POLL_ADD, user_data, fd);
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_POLL_ADD, user_data, fd);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->poll32_events = poll_mask;
         return sqe;
     }
 
     io_uring_sqe* poll_add_multishot(this IoUring& self, u64 user_data, FdI fd, u32 poll_mask) {
         io_uring_sqe* sqe = self.poll_add(user_data, fd, poll_mask);
-        sqe->len          = IORING_POLL_ADD_MULTI;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->len = IORING_POLL_ADD_MULTI;
         return sqe;
     }
 
     io_uring_sqe* poll_remove(this IoUring& self, u64 user_data) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_POLL_REMOVE, user_data, -1);
-        sqe->addr         = user_data;
-        sqe->len          = IORING_POLL_ADD_MULTI;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr = user_data;
+        sqe->len  = IORING_POLL_ADD_MULTI;
         return sqe;
     }
 
@@ -411,7 +494,8 @@ struct IoUring {
     ) {
         static_assert(__BYTE_ORDER == __LITTLE_ENDIAN, "Unsupported endianness!");
 
-        io_uring_sqe* sqe  = self.get_sqe(IORING_OP_POLL_REMOVE, new_user_data, -1);
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_POLL_REMOVE, new_user_data, -1);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->len           = flags;
         sqe->poll32_events = poll_mask;
         sqe->addr          = old_user_data;
@@ -422,7 +506,8 @@ struct IoUring {
         this IoUring& self, u64 user_data, u64 old_user_data, u64 new_user_data, u32 poll_mask,
         u32 flags
     ) {
-        io_uring_sqe* sqe  = self.get_sqe(IORING_OP_POLL_REMOVE, user_data, -1);
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_POLL_REMOVE, user_data, -1);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->addr          = old_user_data;
         sqe->len           = flags;
         sqe->off           = new_user_data;
@@ -433,27 +518,29 @@ struct IoUring {
     io_uring_sqe*
     epoll_ctl(this IoUring& self, u64 user_data, i32 epfd, FdI fd, i32 op, struct epoll_event* ev) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_EPOLL_CTL, user_data, epfd);
-        sqe->off          = (u64)fd;
-        sqe->len          = (u32)op;
-        sqe->addr         = (u64)ev;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->off  = (u64)fd;
+        sqe->len  = (u32)op;
+        sqe->addr = (u64)ev;
         return sqe;
     }
 
     io_uring_sqe*
     sync_file_range(this IoUring& self, u64 user_data, FdI fd, usize len, off_t offset, u32 flags) {
-        io_uring_sqe* sqe     = self.get_sqe(IORING_OP_SYNC_FILE_RANGE, user_data, fd);
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_SYNC_FILE_RANGE, user_data, fd);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->sync_range_flags = flags;
         sqe->len              = (u32)len;
         sqe->off              = (u64)offset;
         return sqe;
     }
 
-    io_uring_sqe*
-    sendmsg(this IoUring& self, u64 user_data, FdI fd, const struct msghdr* msg, u32 flags) {
+    io_uring_sqe* sendmsg(this IoUring& self, u64 user_data, FdI fd, const msghdr* msg, u32 flags) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_SENDMSG, user_data, fd);
-        sqe->len          = 1;
-        sqe->msg_flags    = flags;
-        sqe->addr         = (u64)msg;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->len       = 1;
+        sqe->msg_flags = flags;
+        sqe->addr      = (u64)msg;
         return sqe;
     }
 
@@ -461,15 +548,28 @@ struct IoUring {
         this IoUring& self, u64 user_data, FdI fd, sockaddr* addr, socklen_t* addrlen, int flags
     ) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_ACCEPT, user_data, fd);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->addr         = (u64)addr;
         sqe->addr2        = (u64)addrlen;
         sqe->accept_flags = (u32)flags;
         return sqe;
     }
 
+    io_uring_sqe* connect(
+        this IoUring& self, u64 user_data, FdI sockfd, const sockaddr* addr, socklen_t addrlen
+    ) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_CONNECT, user_data, sockfd);
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr = reinterpret_cast<u64>(addr);
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->off = addrlen;
+        return sqe;
+    }
+
     io_uring_sqe* shutdown(this IoUring& self, u64 user_data, FdI fd, int how) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_SHUTDOWN, user_data, fd);
-        sqe->len          = (u32)how;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->len = (u32)how;
         return sqe;
     }
 
@@ -478,6 +578,7 @@ struct IoUring {
         const char* newpath, int flags
     ) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_RENAMEAT, user_data, olddfd);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->addr         = (u64)oldpath;
         sqe->len          = (u32)newdfd;
         sqe->addr2        = (u64)newpath;
@@ -492,6 +593,7 @@ struct IoUring {
     io_uring_sqe*
     unlinkat(this IoUring& self, u64 user_data, int dfd, const char* path, int flags) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_UNLINKAT, user_data, dfd);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->addr         = (u64)path;
         sqe->unlink_flags = (u32)flags;
         return sqe;
@@ -500,9 +602,10 @@ struct IoUring {
     io_uring_sqe*
     openat(this IoUring& self, u64 user_data, int dfd, const char* path, int flags, mode_t mode) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_OPENAT, user_data, dfd);
-        sqe->addr         = (u64)path;
-        sqe->len          = (u32)mode;
-        sqe->open_flags   = (u32)flags;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr       = (u64)path;
+        sqe->len        = (u32)mode;
+        sqe->open_flags = (u32)flags;
         return sqe;
     }
 
@@ -511,10 +614,11 @@ struct IoUring {
         statx_t* statxbuf
     ) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_STATX, user_data, dfd);
-        sqe->addr         = (u64)path;
-        sqe->len          = mask;
-        sqe->addr2        = (u64)statxbuf;
-        sqe->statx_flags  = (u32)flags;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr        = (u64)path;
+        sqe->len         = mask;
+        sqe->addr2       = (u64)statxbuf;
+        sqe->statx_flags = (u32)flags;
         return sqe;
     }
 
@@ -522,7 +626,8 @@ struct IoUring {
         this IoUring& self, u64 user_data, FdI fd_in, i64 off_in, FdI fd_out, i64 off_out,
         u32 nbytes, unsigned int splice_flags
     ) {
-        io_uring_sqe* sqe  = self.get_sqe(IORING_OP_SPLICE, user_data, fd_out);
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_SPLICE, user_data, fd_out);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->addr          = 0;
         sqe->len           = nbytes;
         sqe->off           = (u64)off_out;
@@ -536,6 +641,7 @@ struct IoUring {
     tee(this IoUring& self, u64 user_data, FdI fd_in, FdI fd_out, u32 nbytes,
         unsigned int splice_flags) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_TEE, user_data, fd_out);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->addr         = 0;
         sqe->len          = nbytes;
         sqe->off          = 0;
@@ -546,7 +652,8 @@ struct IoUring {
 
     io_uring_sqe*
     timeout(this IoUring& self, u64 user_data, __kernel_timespec* ts, u32 count, u32 flags) {
-        io_uring_sqe* sqe  = self.get_sqe(IORING_OP_TIMEOUT, user_data);
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_TIMEOUT, user_data);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->addr          = (u64)ts;
         sqe->len           = 1;
         sqe->off           = count;
@@ -556,7 +663,8 @@ struct IoUring {
 
     io_uring_sqe*
     timeout_remove(this IoUring& self, u64 user_data, u64 timeout_user_data, u32 flags) {
-        io_uring_sqe* sqe  = self.get_sqe(IORING_OP_TIMEOUT_REMOVE, user_data);
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_TIMEOUT_REMOVE, user_data);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->addr          = timeout_user_data;
         sqe->timeout_flags = flags;
         return sqe;
@@ -565,7 +673,8 @@ struct IoUring {
     io_uring_sqe* timeout_update(
         this IoUring& self, u64 user_data, __kernel_timespec* ts, u64 user_data_to_update, u32 flags
     ) {
-        io_uring_sqe* sqe  = self.get_sqe(IORING_OP_TIMEOUT_REMOVE, user_data);
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_TIMEOUT_REMOVE, user_data);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->addr          = user_data_to_update;
         sqe->off           = (u64)ts;
         sqe->timeout_flags = flags | IORING_TIMEOUT_UPDATE;
@@ -574,7 +683,8 @@ struct IoUring {
 
     io_uring_sqe*
     link_timeout(this IoUring& self, u64 user_data, __kernel_timespec* ts, u32 flags) {
-        io_uring_sqe* sqe  = self.get_sqe(IORING_OP_LINK_TIMEOUT, user_data);
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_LINK_TIMEOUT, user_data);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->addr          = (u64)ts;
         sqe->len           = 1;
         sqe->timeout_flags = flags;
@@ -584,42 +694,57 @@ struct IoUring {
     io_uring_sqe*
     files_update(this IoUring& self, u64 user_data, int* fds, u32 nr_fds, int offset) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_FILES_UPDATE, user_data, -1);
-        sqe->addr         = (u64)fds;
-        sqe->len          = nr_fds;
-        sqe->off          = (u64)offset;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr = (u64)fds;
+        sqe->len  = nr_fds;
+        sqe->off  = (u64)offset;
         return sqe;
     }
 
     io_uring_sqe*
     fallocate(this IoUring& self, u64 user_data, FdI fd, int mode, i64 offset, u64 len) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_FALLOCATE, user_data, fd);
-        sqe->len          = (u32)mode;
-        sqe->off          = (u64)offset;
-        sqe->addr         = len;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->len  = (u32)mode;
+        sqe->off  = (u64)offset;
+        sqe->addr = len;
         return sqe;
     }
 
     io_uring_sqe*
     bind(this IoUring& self, u64 user_data, FdI fd, sockaddr* addr, socklen_t addrlen) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_BIND, user_data, fd);
-        sqe->addr         = (u64)addr;
-        sqe->addr2        = 0;
-        sqe->off          = addrlen;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr  = (u64)addr;
+        sqe->addr2 = 0;
+        sqe->off   = addrlen;
         return sqe;
     }
 
     io_uring_sqe* listen(this IoUring& self, u64 user_data, FdI fd, int backlog) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_LISTEN, user_data, fd);
-        sqe->addr         = 0;
-        sqe->len          = (u32)backlog;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr = 0;
+        sqe->len  = (u32)backlog;
+        return sqe;
+    }
+
+    io_uring_sqe*
+    recv(this IoUring& self, u64 user_data, FdI fd, void* buf, usize count, int flags) {
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_RECV, user_data, fd);
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr      = (u64)buf;
+        sqe->len       = (u32)count;
+        sqe->msg_flags = (u32)flags;
         return sqe;
     }
 
     io_uring_sqe* recvmsg(this IoUring& self, u64 user_data, FdI fd, msghdr* msg, u32 flags) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_RECVMSG, user_data, fd);
-        sqe->addr         = (u64)msg;
-        sqe->len          = 1;
-        sqe->msg_flags    = flags;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr      = (u64)msg;
+        sqe->len       = 1;
+        sqe->msg_flags = flags;
         return sqe;
     }
 
@@ -630,8 +755,9 @@ struct IoUring {
     io_uring_sqe*
     mkdirat(this IoUring& self, u64 user_data, int dfd, const char* path, mode_t mode) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_MKDIRAT, user_data, dfd);
-        sqe->addr         = (u64)path;
-        sqe->len          = (u32)mode;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr = (u64)path;
+        sqe->len  = (u32)mode;
         return sqe;
     }
 
@@ -644,8 +770,9 @@ struct IoUring {
         this IoUring& self, u64 user_data, const char* target, int newdfd, const char* linkpath
     ) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_SYMLINKAT, user_data, newdfd);
-        sqe->addr         = (u64)target;
-        sqe->addr2        = (u64)linkpath;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr  = (u64)target;
+        sqe->addr2 = (u64)linkpath;
         return sqe;
     }
 
@@ -658,7 +785,8 @@ struct IoUring {
         this IoUring& self, u64 user_data, int olddfd, const char* oldpath, int newdfd,
         const char* newpath, int flags
     ) {
-        io_uring_sqe* sqe   = self.get_sqe(IORING_OP_LINKAT, user_data, olddfd);
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_LINKAT, user_data, olddfd);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->addr           = (u64)oldpath;
         sqe->len            = (u32)newdfd;
         sqe->addr2          = (u64)newpath;
@@ -670,22 +798,25 @@ struct IoUring {
         this IoUring& self, u64 user_data, void* addr, i32 len, i32 nr, i32 bgid, i32 bid
     ) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_PROVIDE_BUFFERS, user_data, nr);
-        sqe->addr         = (u64)addr;
-        sqe->len          = (u32)len;
-        sqe->off          = (u64)bid;
-        sqe->buf_group    = (u16)bgid;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr      = (u64)addr;
+        sqe->len       = (u32)len;
+        sqe->off       = (u64)bid;
+        sqe->buf_group = (u16)bgid;
         return sqe;
     }
 
     io_uring_sqe* remove_buffers(this IoUring& self, u64 user_data, i32 nr, i32 bgid) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_REMOVE_BUFFERS, user_data, nr);
-        sqe->buf_group    = (u16)bgid;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->buf_group = (u16)bgid;
         return sqe;
     }
 
     io_uring_sqe*
     sync_file_range(this IoUring& self, u64 user_data, FdI fd, u32 len, u64 offset, int flags) {
-        io_uring_sqe* sqe     = self.get_sqe(IORING_OP_SYNC_FILE_RANGE, user_data, fd);
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_SYNC_FILE_RANGE, user_data, fd);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->len              = len;
         sqe->off              = offset;
         sqe->sync_range_flags = (u32)flags;
@@ -695,9 +826,10 @@ struct IoUring {
     io_uring_sqe*
     socket(this IoUring& self, u64 user_data, int domain, int type, int protocol, u32 flags) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_SOCKET, user_data, domain);
-        sqe->off          = (u64)type;
-        sqe->len          = (u32)protocol;
-        sqe->rw_flags     = (__kernel_rwf_t)flags;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->off      = (u64)type;
+        sqe->len      = (u32)protocol;
+        sqe->rw_flags = (__kernel_rwf_t)flags;
         return sqe;
     }
 
@@ -705,11 +837,12 @@ struct IoUring {
         this IoUring& self, u64 user_data, const char* name, char* value, const char* path, u32 len
     ) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_GETXATTR, user_data);
-        sqe->addr         = (u64)name;
-        sqe->addr2        = (u64)value;
-        sqe->addr3        = (u64)path;
-        sqe->len          = len;
-        sqe->xattr_flags  = 0;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr        = (u64)name;
+        sqe->addr2       = (u64)value;
+        sqe->addr3       = (u64)path;
+        sqe->len         = len;
+        sqe->xattr_flags = 0;
         return sqe;
     }
 
@@ -718,21 +851,23 @@ struct IoUring {
         int flags, u32 len
     ) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_SETXATTR, user_data);
-        sqe->addr         = (u64)name;
-        sqe->addr2        = (u64)value;
-        sqe->addr3        = (u64)path;
-        sqe->len          = len;
-        sqe->xattr_flags  = (u32)flags;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr        = (u64)name;
+        sqe->addr2       = (u64)value;
+        sqe->addr3       = (u64)path;
+        sqe->len         = len;
+        sqe->xattr_flags = (u32)flags;
         return sqe;
     }
 
     io_uring_sqe*
     fgetxattr(this IoUring& self, u64 user_data, FdI fd, const char* name, char* value, u32 len) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_FGETXATTR, user_data, fd);
-        sqe->addr         = (u64)name;
-        sqe->addr2        = (u64)value;
-        sqe->len          = len;
-        sqe->xattr_flags  = 0;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr        = (u64)name;
+        sqe->addr2       = (u64)value;
+        sqe->len         = len;
+        sqe->xattr_flags = 0;
         return sqe;
     }
 
@@ -741,16 +876,18 @@ struct IoUring {
         u32 len
     ) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_FSETXATTR, user_data, fd);
-        sqe->addr         = (u64)name;
-        sqe->addr2        = (u64)value;
-        sqe->len          = len;
-        sqe->xattr_flags  = (u32)flags;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr        = (u64)name;
+        sqe->addr2       = (u64)value;
+        sqe->len         = len;
+        sqe->xattr_flags = (u32)flags;
         return sqe;
     }
 
     io_uring_sqe*
     msg_ring(this IoUring& self, u64 user_data, int fd, u32 len, u64 data, u32 flags) {
-        io_uring_sqe* sqe   = self.get_sqe(IORING_OP_MSG_RING, user_data, fd);
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_MSG_RING, user_data, fd);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->len            = len;
         sqe->off            = data;
         sqe->msg_ring_flags = flags;
@@ -760,7 +897,8 @@ struct IoUring {
     io_uring_sqe* msg_ring_fd(
         this IoUring& self, u64 user_data, int fd, int source_fd, int target_fd, u64 data, u32 flags
     ) {
-        io_uring_sqe* sqe   = self.get_sqe(IORING_OP_MSG_RING, user_data, fd);
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_MSG_RING, user_data, fd);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->addr           = (u64)IORING_MSG_SEND_FD;
         sqe->addr3          = (u64)source_fd;
         sqe->len            = 0;
@@ -775,6 +913,7 @@ struct IoUring {
 
     io_uring_sqe* cancel(this IoUring& self, u64 user_data, u64 cancel_user_data, int flags) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_ASYNC_CANCEL, user_data);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->addr         = cancel_user_data;
         sqe->cancel_flags = (u32)flags;
         return sqe;
@@ -782,12 +921,14 @@ struct IoUring {
 
     io_uring_sqe* cancel_fd(this IoUring& self, u64 user_data, FdI fd, u32 flags) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_ASYNC_CANCEL, user_data, fd);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->cancel_flags = flags | IORING_ASYNC_CANCEL_FD;
         return sqe;
     }
 
     io_uring_sqe* fixed_fd_install(this IoUring& self, u64 user_data, FdI fd, u32 flags) {
-        io_uring_sqe* sqe     = self.get_sqe(IORING_OP_FIXED_FD_INSTALL, user_data, fd);
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_FIXED_FD_INSTALL, user_data, fd);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->flags            = IOSQE_FIXED_FILE;
         sqe->install_fd_flags = flags;
         return sqe;
@@ -795,12 +936,14 @@ struct IoUring {
 
     io_uring_sqe* ftruncate(this IoUring& self, u64 user_data, FdI fd, i64 offset) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_FTRUNCATE, user_data, fd);
-        sqe->off          = (u64)offset;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->off = (u64)offset;
         return sqe;
     }
 
     io_uring_sqe* madvise(this IoUring& self, u64 user_data, void* addr, u32 len, int advice) {
-        io_uring_sqe* sqe   = self.get_sqe(IORING_OP_MADVISE, user_data);
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_MADVISE, user_data);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->addr           = (u64)addr;
         sqe->len            = len;
         sqe->fadvise_advice = (u32)advice;
@@ -812,28 +955,31 @@ struct IoUring {
         u16 zc_flags
     ) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_SEND_ZC, user_data, sockfd);
-        sqe->addr         = (u64)buf;
-        sqe->len          = (u32)len;
-        sqe->msg_flags    = (u32)flags;
-        sqe->ioprio       = zc_flags;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr      = (u64)buf;
+        sqe->len       = (u32)len;
+        sqe->msg_flags = (u32)flags;
+        sqe->ioprio    = zc_flags;
         return sqe;
     }
 
     io_uring_sqe*
     sendmsg_zc(this IoUring& self, u64 user_data, FdI fd, const msghdr* msg, u32 flags) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_SENDMSG_ZC, user_data, fd);
-        sqe->addr         = (u64)msg;
-        sqe->len          = 1;
-        sqe->msg_flags    = flags;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr      = (u64)msg;
+        sqe->len       = 1;
+        sqe->msg_flags = flags;
         return sqe;
     }
 
     io_uring_sqe*
     recv_multishot(this IoUring& self, u64 user_data, FdI sockfd, void* buf, usize len, int flags) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_RECV, user_data, sockfd);
-        sqe->addr         = (u64)buf;
-        sqe->len          = (u32)len;
-        sqe->msg_flags    = (u32)flags;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr      = (u64)buf;
+        sqe->len       = (u32)len;
+        sqe->msg_flags = (u32)flags;
         sqe->ioprio |= IORING_RECV_MULTISHOT;
         return sqe;
     }
@@ -842,6 +988,7 @@ struct IoUring {
         this IoUring& self, u64 user_data, FdI fd, sockaddr* addr, socklen_t* addrlen, int flags
     ) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_ACCEPT, user_data, fd);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->addr         = (u64)addr;
         sqe->addr2        = (u64)addrlen;
         sqe->accept_flags = (u32)flags;
@@ -854,6 +1001,7 @@ struct IoUring {
         u32 flags
     ) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_WAITID, user_data, id);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         sqe->addr2        = (u64)infop;
         sqe->len          = (u32)idtype;
         sqe->waitid_flags = flags;
@@ -865,11 +1013,12 @@ struct IoUring {
         this IoUring& self, u64 user_data, u32* futex, u64 val, u64 mask, int futex_flags, u32 flags
     ) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_FUTEX_WAIT, user_data, futex_flags);
-        sqe->addr         = (u64)futex;
-        sqe->len          = 0;
-        sqe->off          = val;
-        sqe->addr3        = mask;
-        sqe->futex_flags  = flags;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr        = (u64)futex;
+        sqe->len         = 0;
+        sqe->off         = val;
+        sqe->addr3       = mask;
+        sqe->futex_flags = flags;
         return sqe;
     }
 
@@ -877,11 +1026,12 @@ struct IoUring {
         this IoUring& self, u64 user_data, u32* futex, u64 val, u64 mask, int futex_flags, u32 flags
     ) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_FUTEX_WAKE, user_data, futex_flags);
-        sqe->addr         = (u64)futex;
-        sqe->len          = 0;
-        sqe->off          = val;
-        sqe->addr3        = mask;
-        sqe->futex_flags  = flags;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr        = (u64)futex;
+        sqe->len         = 0;
+        sqe->off         = val;
+        sqe->addr3       = mask;
+        sqe->futex_flags = flags;
         return sqe;
     }
 
@@ -889,21 +1039,28 @@ struct IoUring {
         this IoUring& self, u64 user_data, struct futex_waitv* futex, u32 nr_futex, u32 flags
     ) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_FUTEX_WAITV, user_data);
-        sqe->addr         = (u64)futex;
-        sqe->len          = nr_futex;
-        sqe->futex_flags  = flags;
+        if (sqe == null<io_uring_sqe>()) return sqe;
+        sqe->addr        = (u64)futex;
+        sqe->len         = nr_futex;
+        sqe->futex_flags = flags;
         return sqe;
     }
 
     io_uring_sqe* close(this IoUring& self, u64 user_data, FdI fd) {
-        io_uring_sqe* sqe = self.get_sqe(IORING_OP_CLOSE, user_data, fd);
-        return sqe;
+        return self.get_sqe(IORING_OP_CLOSE, user_data, fd);
     }
 
     io_uring_sqe* close_direct(this IoUring& self, u64 user_data, u32 file_index) {
         io_uring_sqe* sqe = self.get_sqe(IORING_OP_CLOSE, user_data, 0);
+        if (sqe == null<io_uring_sqe>()) return sqe;
         if (file_index == static_cast<u32>(IORING_FILE_INDEX_ALLOC)) file_index--;
         sqe->file_index = file_index + 1;
+        return sqe;
+    }
+
+    io_uring_sqe* link(this IoUring&, io_uring_sqe* sqe) {
+        if (sqe != null<io_uring_sqe>()) [[likely]]
+            sqe->flags |= IOSQE_IO_LINK;
         return sqe;
     }
 };

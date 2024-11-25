@@ -13,11 +13,11 @@ template <typename T> struct Slice {
 
     Slice(const Slice<T> &t)         = delete;
     Slice &operator=(const Slice &t) = delete;
-    Slice(Slice &&s) noexcept : len(exchange(s.len, USIZE_0)), ptr(exchange(s.ptr, null<T>())) {}
+    Slice(Slice &&s) noexcept : len(exchange(s.len, 0_usize)), ptr(exchange(s.ptr, null<T>())) {}
     Slice &operator=(Slice &&other) noexcept {
         if (this != &other) {
             ptr = exchange(other.ptr, null<T>());
-            len = exchange(other.len, USIZE_0);
+            len = exchange(other.len, 0_usize);
         }
         return *this;
     }
@@ -79,11 +79,11 @@ template <typename T> struct FixedSlice {
     FixedSlice(const FixedSlice &t)            = delete;
     FixedSlice &operator=(const FixedSlice &t) = delete;
     FixedSlice(FixedSlice &&s) noexcept
-        : len(exchange(s.len, USIZE_0)), ptr(exchange(s.ptr, null<T>())) {}
+        : len(exchange(s.len, 0_usize)), ptr(exchange(s.ptr, null<T>())) {}
     FixedSlice &operator=(FixedSlice &&other) noexcept {
         if (this != &other) {
             ptr = exchange(other.ptr, null<T>());
-            len = exchange(other.len, USIZE_0);
+            len = exchange(other.len, 0_usize);
         }
         return *this;
     }
@@ -124,11 +124,11 @@ template <typename T> struct SliceWithPos {
     SliceWithPos(const SliceWithPos &t)            = delete;
     SliceWithPos &operator=(const SliceWithPos &t) = delete;
     SliceWithPos(SliceWithPos &&s) noexcept
-        : pos(exchange(s.pos, USIZE_0)), slice(exchange(s.slice, Slice<T>())) {}
+        : pos(exchange(s.pos, 0_usize)), slice(exchange(s.slice, Slice<T>())) {}
     SliceWithPos &operator=(SliceWithPos &&other) noexcept {
         if (this != &other) {
             slice = exchange(other.slice, Slice<T>());
-            pos   = exchange(other.pos, USIZE_0);
+            pos   = exchange(other.pos, 0_usize);
         }
         return *this;
     }

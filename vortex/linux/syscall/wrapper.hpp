@@ -19,14 +19,13 @@ static SysRes<usize> io_cancel(aio_context_t ctx_id, struct iocb *iocb, struct i
     return syscall(__NR_io_cancel, ctx_id, iocb, result);
 }
 static SysRes<usize> io_getevents(
-    aio_context_t ctx_id, long min_nr, long nr, struct io_event *events,
-    struct __kernel_timespec *timeout
+    aio_context_t ctx_id, long min_nr, long nr, struct io_event *events, timespec *timeout
 ) {
     return syscall(__NR_io_getevents, ctx_id, min_nr, nr, events, timeout);
 }
 static SysRes<usize> io_pgetevents(
-    aio_context_t ctx_id, long min_nr, long nr, struct io_event *events,
-    struct __kernel_timespec *timeout, const __aio_sigset *sig
+    aio_context_t ctx_id, long min_nr, long nr, struct io_event *events, timespec *timeout,
+    const __aio_sigset *sig
 ) {
     return syscall(__NR_io_pgetevents, ctx_id, min_nr, nr, events, timeout, sig);
 }
@@ -257,12 +256,11 @@ static SysRes<usize> pwritev(
 static SysRes<usize> sendfile(FdI out_fd, FdI in_fd, loff_t *offset, usize count) {
     return syscall(__NR_sendfile, out_fd, in_fd, offset, count);
 }
-static SysRes<usize>
-pselect6(int a, fd_set *b, fd_set *c, fd_set *d, struct __kernel_timespec *e, void *f) {
+static SysRes<usize> pselect6(int a, fd_set *b, fd_set *c, fd_set *d, timespec *e, void *f) {
     return syscall(__NR_pselect6, a, b, c, d, e, f);
 }
 static SysRes<usize>
-ppoll(struct pollfd *a, unsigned int b, struct __kernel_timespec *c, const sigset_t *d, usize e) {
+ppoll(struct pollfd *a, unsigned int b, timespec *c, const sigset_t *d, usize e) {
     return syscall(__NR_ppoll, a, b, c, d, e);
 }
 static SysRes<usize> signalfd4(FdI ufd, sigset_t *user_mask, usize sizemask, int flags) {
@@ -308,8 +306,7 @@ static SysRes<usize> timerfd_settime(
 static SysRes<usize> timerfd_gettime(FdI ufd, struct __kernel_itimerspec *otmr) {
     return syscall(__NR_timerfd_gettime, ufd, otmr);
 }
-static SysRes<usize>
-utimensat(FdI dfd, const char *filename, struct __kernel_timespec *utimes, int flags) {
+static SysRes<usize> utimensat(FdI dfd, const char *filename, timespec *utimes, int flags) {
     return syscall(__NR_utimensat, dfd, filename, utimes, flags);
 }
 static SysRes<usize> acct(const char *name) {
@@ -351,8 +348,8 @@ static SysRes<usize> set_robust_list(struct robust_list_head *head, usize len) {
     return syscall(__NR_set_robust_list, head, len);
 }
 static SysRes<usize> futex_waitv(
-    struct futex_waitv *waiters, unsigned int nr_futexes, unsigned int flags,
-    struct __kernel_timespec *timeout, clockid_t clockid
+    struct futex_waitv *waiters, unsigned int nr_futexes, unsigned int flags, timespec *timeout,
+    clockid_t clockid
 ) {
     return syscall(__NR_futex_waitv, waiters, nr_futexes, flags, timeout, clockid);
 }
@@ -360,8 +357,8 @@ static SysRes<usize> futex_wake(void *uaddr, unsigned long mask, int nr, unsigne
     return syscall(__NR_futex_wake, uaddr, mask, nr, flags);
 }
 static SysRes<usize> futex_wait(
-    void *uaddr, unsigned long val, unsigned long mask, unsigned int flags,
-    struct __kernel_timespec *timespec, clockid_t clockid
+    void *uaddr, unsigned long val, unsigned long mask, unsigned int flags, timespec *timespec,
+    clockid_t clockid
 ) {
     return syscall(__NR_futex_wait, uaddr, val, mask, flags, timespec, clockid);
 }
@@ -369,7 +366,7 @@ static SysRes<usize>
 futex_requeue(struct futex_waitv *waiters, unsigned int flags, int nr_wake, int nr_requeue) {
     return syscall(__NR_futex_requeue, waiters, flags, nr_wake, nr_requeue);
 }
-static SysRes<usize> nanosleep(struct __kernel_timespec *rqtp, struct __kernel_timespec *rmtp) {
+static SysRes<usize> nanosleep(timespec *rqtp, timespec *rmtp) {
     return syscall(__NR_nanosleep, rqtp, rmtp);
 }
 static SysRes<usize> getitimer(int which, struct __kernel_old_itimerval *value) {
@@ -413,15 +410,14 @@ static SysRes<usize> timer_delete(timer_t timer_id) {
 static SysRes<usize> clock_settime(clockid_t which_clock, const struct __kernel_timespec *tp) {
     return syscall(__NR_clock_settime, which_clock, tp);
 }
-static SysRes<usize> clock_gettime(clockid_t which_clock, struct __kernel_timespec *tp) {
+static SysRes<usize> clock_gettime(clockid_t which_clock, timespec *tp) {
     return syscall(__NR_clock_gettime, which_clock, tp);
 }
-static SysRes<usize> clock_getres(clockid_t which_clock, struct __kernel_timespec *tp) {
+static SysRes<usize> clock_getres(clockid_t which_clock, timespec *tp) {
     return syscall(__NR_clock_getres, which_clock, tp);
 }
 static SysRes<usize> clock_nanosleep(
-    clockid_t which_clock, int flags, const struct __kernel_timespec *rqtp,
-    struct __kernel_timespec *rmtp
+    clockid_t which_clock, int flags, const struct __kernel_timespec *rqtp, timespec *rmtp
 ) {
     return syscall(__NR_clock_nanosleep, which_clock, flags, rqtp, rmtp);
 }
@@ -458,7 +454,7 @@ static SysRes<usize> sched_get_priority_max(int policy) {
 static SysRes<usize> sched_get_priority_min(int policy) {
     return syscall(__NR_sched_get_priority_min, policy);
 }
-static SysRes<usize> sched_rr_get_interval(pid_t pid, struct __kernel_timespec *interval) {
+static SysRes<usize> sched_rr_get_interval(pid_t pid, timespec *interval) {
     return syscall(__NR_sched_rr_get_interval, pid, interval);
 }
 static SysRes<usize> restart_syscall() {
@@ -840,9 +836,8 @@ static SysRes<usize> perf_event_open(
 static SysRes<usize> accept4(int a, sockaddr *b, int *c, int d) {
     return syscall(__NR_accept4, a, b, c, d);
 }
-static SysRes<usize> recvmmsg(
-    FdI fd, mmsghdr *msg, unsigned int vlen, unsigned flags, struct __kernel_timespec *timeout
-) {
+static SysRes<usize>
+recvmmsg(FdI fd, mmsghdr *msg, unsigned int vlen, unsigned flags, timespec *timeout) {
     return syscall(__NR_recvmmsg, fd, msg, vlen, flags, timeout);
 }
 static SysRes<pid_t> wait4(pid_t pid, int *stat_addr, int options, struct rusage *ru) {

@@ -16,11 +16,14 @@ struct PageAllocator {
     PageAllocator(const PageAllocator &t)            = delete;
     PageAllocator &operator=(const PageAllocator &t) = delete;
     PageAllocator(PageAllocator &&p) noexcept
-        : len(exchange(p.len, USIZE_0)), ptr(exchange(p.ptr, null<u8>())) {}
+        : len(exchange(p.len, 0_usize)), ptr(exchange(p.ptr, null<u8>())) {}
 
     static SysRes<PageAllocator> init(usize c) {
         usize l = c * PAGE_SIZE;
-        auto r  = mmap(NULL, l, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
+        auto r  = mmap(
+            NULL, l, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE,
+            18446744073709551615_usize, 0
+        );
         return SysRes<PageAllocator>::from_kind(
             move(PageAllocator(l, reinterpret_cast<u8 *>(r.unsafe_unwrap()))), r.kind
         );

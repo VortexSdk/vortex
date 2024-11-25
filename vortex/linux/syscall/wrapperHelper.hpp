@@ -18,6 +18,7 @@ DIAG_IGNORE_GCC_PUSH("-Wall", "-Wextra")
 #include <linux/eventpoll.h>
 #include <linux/fs.h>
 #include <linux/futex.h>
+#include <linux/in.h>
 #include <linux/io_uring.h>
 #include <linux/kexec.h>
 #include <linux/landlock.h>
@@ -70,6 +71,7 @@ using id_t         = u32;
 using rwf_t        = __kernel_rwf_t;
 using sockaddr     = __kernel_sockaddr_storage;
 
+typedef struct msghdr msghdr;
 typedef struct statx statx_t;
 
 template <typename From, typename To> To fd_cast(From value) {

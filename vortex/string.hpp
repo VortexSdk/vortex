@@ -32,7 +32,7 @@ template <typename T = u8> struct BasicString {
         memset(reinterpret_cast<void *>(prefix), 0, static_cast<usize>(sizeof(prefix)));
     }
     BasicString(BasicString &&s) noexcept
-        : len(exchange(s.len, U32_0)), cap(exchange(s.cap, U32_0)),
+        : len(exchange(s.len, 0_u32)), cap(exchange(s.cap, 0_u32)),
           data(exchange(s.data, StringData<T>{.buf = {}})) {
         memcpy(
             reinterpret_cast<void *>(prefix), reinterpret_cast<const void *>(s.prefix),

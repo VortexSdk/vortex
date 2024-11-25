@@ -3,7 +3,8 @@
 #include "diagnostics.hpp"
 #include "mem/utils.hpp"
 #include "numbers.hpp"
-#include "vortex/diagnostics.hpp"
+
+DIAG_IGNORE_PUSH("-Wsign-conversion")
 
 static usize strlen(const char *const s) {
     usize i = 0;
@@ -74,14 +75,7 @@ static i64 stol(const char *str, usize *idx = reinterpret_cast<usize *>(NULL), i
     }
 
     // Set the index if it's provided
-    DIAG_IGNORE(
-        {
-            if (idx) {
-                *idx = str - (str - strlen(str));
-            }
-        },
-        "-Wsign-conversion"
-    )
+    if (idx) *idx = str - (str - strlen(str));
 
     return sign * result;
 }
@@ -125,13 +119,8 @@ static isize ltos(i64 value, char *str, usize size) {
 
     // Fill the string from the end
     while (value != 0) {
-        DIAG_IGNORE(
-            {
-                str [--length + is_negative] = '0' + (is_negative ? -(value % 10) : (value % 10));
-                value /= 10;
-            },
-            "-Wsign-conversion"
-        )
+        str [--length + is_negative] = '0' + (is_negative ? -(value % 10) : (value % 10));
+        value /= 10;
     }
 
     // If negative, add the '-' sign
@@ -141,3 +130,5 @@ static isize ltos(i64 value, char *str, usize size) {
 
     return static_cast<isize>(length);
 }
+
+DIAG_IGNORE_POP

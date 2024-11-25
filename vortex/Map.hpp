@@ -70,11 +70,11 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct N
     NoStorageMap(const NoStorageMap &t)            = delete;
     NoStorageMap &operator=(const NoStorageMap &t) = delete;
     NoStorageMap(NoStorageMap &&m) noexcept
-        : count(exchange(m.count, USIZE_0)), entries(exchange(m.entries, Slice<MapEntry<T, Y>>())) {
+        : count(exchange(m.count, 0_usize)), entries(exchange(m.entries, Slice<MapEntry<T, Y>>())) {
     }
     NoStorageMap &operator=(NoStorageMap &&other) noexcept {
         if (this != &other) {
-            count   = exchange(other.count, USIZE_0);
+            count   = exchange(other.count, 0_usize);
             entries = exchange(other.entries, Slice<MapEntry<T, Y>>());
         }
         return *this;
@@ -215,14 +215,14 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct M
     Map &operator=(const Map &t) = delete;
     Map(Map &&m) noexcept
         : ncm(exchange(m.ncm, move(CURRENT_NCM()))), keys(exchange(m.keys, null<T>())),
-          values(exchange(m.values, null<Y>())), key_value_len(exchange(m.key_value_len, USIZE_0)) {
+          values(exchange(m.values, null<Y>())), key_value_len(exchange(m.key_value_len, 0_usize)) {
     }
     Map &operator=(Map &&other) noexcept {
         if (this != &other) {
             keys          = exchange(other.keys, null<T>());
             values        = exchange(other.values, null<Y>());
             ncm           = exchange(other.ncm, move(CURRENT_NCM{}));
-            key_value_len = exchange(other.key_value_len, USIZE_0);
+            key_value_len = exchange(other.key_value_len, 0_usize);
         }
         return *this;
     }
