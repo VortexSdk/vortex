@@ -5,6 +5,7 @@
 #include "../../metap/metap.hpp"
 #include "../../numbers.hpp"
 #include "../../panic.hpp"
+#include "vortex/metap/structs.hpp"
 
 DIAG_IGNORE_PUSH("-Weverything")
 #include <linux/io_uring.h>
@@ -323,13 +324,7 @@ enum class SysResKind : u8 {
 };
 
 struct CqeRes {
-    u64 user_data{0}; /* sqe->user_data value passed back */
-    u32 res{0};       /* result code for this event */
-    u32 flags{0};
-
-    CqeRes() : user_data(0), res(0), flags(0) {}
-    CqeRes(u64 _user_data, u32 _res, u32 _flags)
-        : user_data(_user_data), res(_res), flags(_flags) {}
+    VAL_STRUCT(CqeRes, user_data, 0_u64, res, 0_u32, flags, 0_u32)
 };
 
 template <typename T> struct SysRes {
@@ -459,7 +454,7 @@ using IoUringRes = SysRes<CqeRes>;
     ({                                                                                             \
         auto submitted = ::vortex::move(expr);                                                     \
         if (submitted.is_err()) [[unlikely]]                                                       \
-            return submitted;                                                                      \
+            return submitted.err_or_none();                                                        \
         ::vortex::move(submitted.unwrap());                                                        \
     })
 #define __TRY2(expr, t, submitted)                                                                 \

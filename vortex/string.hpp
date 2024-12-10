@@ -65,7 +65,7 @@ template <typename T = u8> struct BasicString {
         BasicString s;
         s.cap = capacity;
         if (capacity > STR_DATA_COUNT) {
-            const auto alloc_res = a->template alloc<T>(capacity);
+            const Slice<T> alloc_res = a->template alloc<T>(capacity);
             if (alloc_res.is_empty()) return SysRes<BasicString<T>>::from_err(SysResKind::NOMEM);
             s.data.ptr = alloc_res.ptr;
         }
@@ -79,10 +79,7 @@ template <typename T = u8> struct BasicString {
 
     template <AllocatorStrategy U>
     static SysRes<BasicString<T>> from(Allocator<U> *a, const Slice<const T> *const slice) {
-        auto init_res = BasicString<T>::init(a, slice->len);
-        if (init_res.is_error()) return init_res;
-
-        auto &s = init_res.unwrap();
+        BasicString<T> s = TRY(BasicString<T>::init(a, slice->len));
         if (slice->len <= STR_DATA_COUNT) {
             memcpy(
                 reinterpret_cast<void *>(s.prefix), reinterpret_cast<const void *>(slice->ptr),
@@ -101,10 +98,7 @@ template <typename T = u8> struct BasicString {
 
     template <AllocatorStrategy U>
     SysRes<BasicString<T>> clone(this const BasicString<T> &self, Allocator<U> *a) {
-        auto init_res = BasicString<T>::init(a, self.cap);
-        if (init_res.is_error()) return init_res;
-
-        auto &s = init_res.unwrap();
+        BasicString<T> s = TRY(BasicString<T>::init(a, self.cap));
         if (self.cap <= STR_DATA_COUNT) {
             memcpy(
                 reinterpret_cast<void *>(s.prefix), reinterpret_cast<const void *>(self.prefix),
@@ -143,7 +137,7 @@ template <typename T = u8> struct BasicString {
 
         T *new_ptr;
         if (self.cap <= STR_DATA_COUNT) {
-            auto alloc_res = a->template alloc<T>(new_cap);
+            Slice<T> alloc_res = a->template alloc<T>(new_cap);
             if (alloc_res.is_empty()) return true;
             new_ptr = alloc_res.ptr;
 
@@ -152,7 +146,7 @@ template <typename T = u8> struct BasicString {
                 self.len * sizeof(T)
             );
         } else {
-            auto resize_res =
+            Slice<T> resize_res =
                 a->template resize_or_alloc<T>(Slice<T>::init(self.cap, self.data.ptr), new_cap);
             if (resize_res.is_empty()) return true;
             new_ptr = resize_res.ptr;
@@ -204,7 +198,7 @@ template <typename T = u8> struct BasicString {
         if (start >= self.len || start + sublen > self.len) [[unlikely]]
             return SysRes<BasicString<T>>::from_err(SysResKind::INVAL);
 
-        auto slice = self.as_slice();
+        Slice<const T> slice = self.as_slice();
         return BasicString<T>::from(a, &Slice<const T>::init(sublen, &slice.ptr [start]));
     }
 

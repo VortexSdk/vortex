@@ -26,7 +26,7 @@ DIAG_IGNORE_CLANG_PUSH("-Wold-style-cast", "-Wcast-align")
         ::vortex::move(sqe);                                                                       \
     })
 #define IO_TRY_ADD(expr, t) __IO_TRY_ADD(expr, t, UNIQUE_NAME(sqe))
-#define __IO_TRY_ADD_AND_GET_INNER(r, expr, t, sqe, submitted_r, submitted)                        \
+#define __IO_TRY_ADD_AND_GET_INNER(expr, t, sqe, submitted_r, submitted)                           \
     ({                                                                                             \
         auto sqe = ::vortex::move(expr);                                                           \
         if (sqe == reinterpret_cast<decltype(sqe)>(0)) [[unlikely]]                                \
@@ -42,9 +42,9 @@ DIAG_IGNORE_CLANG_PUSH("-Wold-style-cast", "-Wcast-align")
                                                                                                    \
         ::vortex::move(submitted.unwrap());                                                        \
     })
-#define IO_TRY_ADD_AND_GET(r, expr, t)                                                             \
+#define IO_TRY_ADD_AND_GET(expr, t)                                                                \
     __IO_TRY_ADD_AND_GET_INNER(                                                                    \
-        r, expr, t, UNIQUE_NAME(sqe), UNIQUE_NAME(submitted), UNIQUE_NAME(submitted)               \
+        expr, t, UNIQUE_NAME(sqe), UNIQUE_NAME(submitted), UNIQUE_NAME(submitted)                  \
     )
 #define __IO_TRY_ALL_AND_SUBMIT_INNER(r, count, t, submitted_r, submitted, arr, i)                 \
     ({                                                                                             \
@@ -79,20 +79,20 @@ struct SubmissionQueue {
         Slice<io_uring_sqe>()
     )
 
-    static SysRes<SubmissionQueue> init(FdUL fd, const io_uring_params& p) {
-        const auto& off       = p.sq_off;
-        const usize sqes_size = p.sq_entries;
+    static SysRes<SubmissionQueue> init(FdUL fd, const io_uring_params* p) {
+        const io_sqring_offsets* off = &p->sq_off;
+        const usize sqes_size        = p->sq_entries;
         const usize mem_size =
-            max(off.array + p.sq_entries * sizeof(u32),
-                p.cq_off.cqes + p.cq_entries * sizeof(io_uring_sqe));
+            max(off->array + p->sq_entries * sizeof(u32),
+                p->cq_off.cqes + p->cq_entries * sizeof(io_uring_sqe));
 
-        auto m =
+        u8* m =
             TRY(mmap(
                     null, mem_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_POPULATE, fd,
                     IORING_OFF_SQ_RING
                 ),
                 SubmissionQueue);
-        auto sqes =
+        io_uring_sqe* sqes =
             TRY(mmap(
                     null, sqes_size * sizeof(io_uring_sqe), PROT_READ | PROT_WRITE,
                     MAP_SHARED | MAP_POPULATE, fd, IORING_OFF_SQES
@@ -101,9 +101,9 @@ struct SubmissionQueue {
                 SubmissionQueue);
 
         return SubmissionQueue(
-            *off_cast(m, off.ring_mask), Slice<u32>::init(p.sq_entries, off_cast(m, off.array)),
-            off_cast(m, off.head), off_cast(m, off.tail), off_cast(m, off.dropped),
-            off_cast(m, off.flags), 0, 0, Slice<u8>::init(mem_size, m),
+            *off_cast(m, off->ring_mask), Slice<u32>::init(p->sq_entries, off_cast(m, off->array)),
+            off_cast(m, off->head), off_cast(m, off->tail), off_cast(m, off->dropped),
+            off_cast(m, off->flags), 0, 0, Slice<u8>::init(mem_size, m),
             Slice<io_uring_sqe>::init(sqes_size, sqes)
         );
     }
@@ -121,15 +121,15 @@ struct CompletionQueue {
         (Slice<io_uring_cqe>())
     )
 
-    static CompletionQueue init(const io_uring_params& p, const SubmissionQueue& sq) {
-        const auto& off = p.cq_off;
-        u8* m           = sq.mem.ptr;
+    static CompletionQueue init(const io_uring_params* p, const SubmissionQueue* sq) {
+        const io_cqring_offsets* off = &p->cq_off;
+        u8* m                        = sq->mem.ptr;
 
         return CompletionQueue(
-            *off_cast(m, off.ring_mask), off_cast(m, off.head), off_cast(m, off.tail),
-            off_cast(m, off.overflow),
+            *off_cast(m, off->ring_mask), off_cast(m, off->head), off_cast(m, off->tail),
+            off_cast(m, off->overflow),
             Slice<io_uring_cqe>::init(
-                p.cq_entries, reinterpret_cast<io_uring_cqe*>(off_cast(m, off.cqes))
+                p->cq_entries, reinterpret_cast<io_uring_cqe*>(off_cast(m, off->cqes))
             )
         );
     }
@@ -161,7 +161,8 @@ struct IoUring {
                features & IORING_FEAT_SINGLE_MMAP;
     }
 
-    static SysRes<IoUring> init(u32 entries, u32 flags, u32 thread_idle, u32 thread_cpu) {
+    static SysRes<IoUring>
+    init(u32 entries, u32 flags = 0, u32 thread_idle = 0, u32 thread_cpu = 0) {
         IoUring self;
         entries           = ceilPowerOfTwo(entries);
 
@@ -177,15 +178,16 @@ struct IoUring {
             return SysRes<IoUring>::from_err(SysResKind::NOSYS);
         }
 
-        auto sq_r = SubmissionQueue::init(static_cast<FdUL>(self.io_fd), p);
+        SysRes<SubmissionQueue> sq_r = SubmissionQueue::init(static_cast<FdUL>(self.io_fd), &p);
         if (sq_r.is_err()) {
             self.close_fd();
             return sq_r.return_err<IoUring>();
         }
 
-        self.features = p.features;
-        self.sq       = sq_r.unwrap();
-        self.cq       = CompletionQueue::init(p, self.sq);
+        self.setup_flags = p.flags;
+        self.features    = p.features;
+        self.sq          = sq_r.unwrap();
+        self.cq          = CompletionQueue::init(&p, &self.sq);
 
         return move(self);
     }
@@ -227,11 +229,11 @@ struct IoUring {
     bool cq_ring_needs_enter(this IoUring& self) {
         return (self.setup_flags & IORING_SETUP_IOPOLL) || self.cq_ring_needs_flush();
     }
-    bool sq_ring_needs_enter(this IoUring& self, u32& flags) {
+    bool sq_ring_needs_enter(this IoUring& self, u32* flags) {
         if (!(self.setup_flags & IORING_SETUP_SQPOLL)) return true;
 
         if (*self.sq.flags & IORING_SQ_NEED_WAKEUP) {
-            flags |= IORING_ENTER_SQ_WAKEUP;
+            *flags |= IORING_ENTER_SQ_WAKEUP;
             return true;
         }
 
@@ -242,7 +244,7 @@ struct IoUring {
         u32 submitted = self.flush_sq();
         u32 flags     = 0;
 
-        if (self.sq_ring_needs_enter(flags) || wait_nr > 0) {
+        if (self.sq_ring_needs_enter(&flags) || wait_nr > 0) {
             if (wait_nr > 0 || self.cq_ring_needs_enter()) {
                 flags |= IORING_ENTER_GETEVENTS;
             }
@@ -273,12 +275,12 @@ struct IoUring {
             return null;
         }
 
-        auto* sqe        = &self.sq.sqes.ptr [static_cast<usize>(self.sq.sqe_tail & self.sq.mask)];
-        self.sq.sqe_tail = next;
+        io_uring_sqe* sqe = &self.sq.sqes.ptr [static_cast<usize>(self.sq.sqe_tail & self.sq.mask)];
+        self.sq.sqe_tail  = next;
 
-        sqe->opcode      = op;
-        sqe->fd          = fd;
-        sqe->user_data   = user_data;
+        sqe->opcode       = op;
+        sqe->fd           = fd;
+        sqe->user_data    = user_data;
         return sqe;
     }
 
@@ -286,7 +288,7 @@ struct IoUring {
         if (self.cq_ready() == 0) [[unlikely]]
             return SysRes<IoUringRes>::from_err(SysResKind::INPROGRESS);
 
-        const auto cqe = IoUringRes(*self.cq.cqes [*self.cq.head]);
+        const IoUringRes cqe = IoUringRes(*self.cq.cqes [*self.cq.head]);
         self.cq_advance(1);
 
         return move(cqe);
@@ -294,11 +296,11 @@ struct IoUring {
 
     template <AllocatorStrategy U>
     SysRes<Vec<IoUringRes>> submit_and_get(this IoUring& self, Allocator<U>* a, u32 wait_nr) {
-        auto submitted = TRY(self.submit_and_wait(wait_nr), Vec<IoUringRes>);
-        auto v         = TRY(Vec<IoUringRes>::init(a, submitted), Vec<IoUringRes>);
+        usize submitted   = TRY(self.submit_and_wait(wait_nr), Vec<IoUringRes>);
+        Vec<IoUringRes> v = TRY(Vec<IoUringRes>::init(a, submitted), Vec<IoUringRes>);
 
         for (usize i = 0; i < submitted; i++) {
-            const auto push_r = v.push(a, IoUringRes(*self.cq.cqes [(*self.cq.head) + i]));
+            const bool push_r = v.push(a, IoUringRes(*self.cq.cqes [(*self.cq.head) + i]));
             if (push_r) {
                 self.cq_advance(static_cast<u32>(i));
                 return SysRes<Vec<IoUringRes>>::from_err(SysResKind::NOMEM);
@@ -311,9 +313,7 @@ struct IoUring {
 
     SysRes<IoUringRes> submit_and_get_one(this IoUring& self) {
         TRY(self.submit_and_wait(1), IoUringRes);
-        auto idx = *self.cq.head;
-        auto loc = self.cq.cqes [idx];
-        auto res = IoUringRes(*loc);
+        IoUringRes res = IoUringRes(*self.cq.cqes [*self.cq.head]);
 
         self.cq_advance(1);
 

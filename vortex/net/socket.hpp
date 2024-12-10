@@ -319,9 +319,9 @@ struct SocketConfig {
     }
 
     sockaddr_in to_sockaddr_in(this const SocketConfig& self) {
-        auto s       = zeroed<sockaddr_in>();
-        s.sin_port   = self.port_to_net();
-        s.sin_family = static_cast<__kernel_sa_family_t>(self.domain_as_int());
+        sockaddr_in s = zeroed<sockaddr_in>();
+        s.sin_port    = self.port_to_net();
+        s.sin_family  = static_cast<__kernel_sa_family_t>(self.domain_as_int());
         self.fill_addr(&s);
         return s;
     }
@@ -355,12 +355,12 @@ struct Socket {
 
         self.socket_fd   = static_cast<FdI>(
             IO_TRY_ADD_AND_GET(
-                r, r->socket(I64_MAX, config.domain_as_int(), config.type_as_int(), 0, 0), Socket
+                r->socket(I64_MAX, config.domain_as_int(), config.type_as_int(), 0, 0), Socket
             )
                 .res
         );
 
-        auto wait_nr = 1;
+        usize wait_nr = 1;
         if (is_server) {
             if (config.type == SocketType::TCP || config.type == SocketType::SCTP) {
                 IO_TRY_ADD(
@@ -406,15 +406,14 @@ struct Socket {
     SysRes<None> deinit(this Socket& self, IoUring* r) {
         if (self.socket_fd != -1) {
             self.cancel_accept_multishot(r);
-            IO_TRY_ADD_AND_GET(r, r->close(self.udm.socket_fd_close, self.socket_fd), None);
+            IO_TRY_ADD_AND_GET(r->close(self.udm.socket_fd_close, self.socket_fd), None);
         }
         return None();
     }
 
     SysRes<FdU> accept(this Socket& self, IoUring* r) {
         return static_cast<FdU>(
-            IO_TRY_ADD_AND_GET(r, r->accept(self.udm.accept, self.socket_fd, null, null, 0), FdU)
-                .res
+            IO_TRY_ADD_AND_GET(r->accept(self.udm.accept, self.socket_fd, null, null, 0), FdU).res
         );
     }
 
@@ -425,38 +424,33 @@ struct Socket {
         return None();
     }
     SysRes<None> cancel_accept_multishot(this Socket& self, IoUring* r) {
-        IO_TRY_ADD_AND_GET(r, r->cancel_fd(self.udm.accept_fd_close, self.socket_fd, 0), None);
+        IO_TRY_ADD_AND_GET(r->cancel_fd(self.udm.accept_fd_close, self.socket_fd, 0), None);
         return None();
     }
 
     template <typename T>
     SysRes<None> send(this Socket& self, IoUring* r, const T* data, usize len) {
-        if (IO_TRY_ADD_AND_GET(
-                r,
-                r->send_zc(
-                    self.udm.send, self.socket_fd, reinterpret_cast<const u8*>(data),
-                    len * sizeof(T), 0, 0
-                ),
-                None
-            )
-                .flags &
-            IORING_CQE_F_MORE) {
+        CqeRes res = IO_TRY_ADD_AND_GET(
+            r->send_zc(
+                18446744073709551606_u64, self.socket_fd, reinterpret_cast<const u8*>(data),
+                len * sizeof(T), 0, 0
+            ),
+            None
+        );
+        if (res.flags & IORING_CQE_F_MORE) {
             while (true) {
-                auto submitted = TRY(r->submit_and_get_one(), None);
-                if (TRY(submitted, None).flags & IORING_CQE_F_NOTIF) {
-                    break;
-                }
+                res = TRY(TRY(r->submit_and_get_one()));
+                if (res.flags & IORING_CQE_F_NOTIF) break;
             }
         }
+
         return None();
     }
 
     SysRes<usize> recv(this Socket& self, IoUring* r, FdI fd, Slice<u8>* buf) {
         return static_cast<usize>(
             IO_TRY_ADD_AND_GET(
-                r,
-                r->recv(self.udm.recv, fd, reinterpret_cast<void*>(buf->ptr), buf->len, MSG_TRUNC),
-                usize
+                r->recv(self.udm.recv, fd, reinterpret_cast<void*>(buf->ptr), buf->len, 0), usize
             )
                 .res
         );
@@ -468,12 +462,14 @@ struct Socket {
     template <AllocatorStrategy U>
     SysRes<usize>
     recv(this Socket& self, Allocator<U>* a, IoUring* r, FdI fd, u32 bucket_size = 4096) {
-        auto m      = TRY(Vec<u8>::init(a, bucket_size), usize);
-        auto gotten = TRY(self.recv(r, fd, m.as_slice()));
+        Vec<u8> m         = TRY(Vec<u8>::init(a, bucket_size), usize);
+        Slice<u8> m_slice = m.as_mut_slice();
+        usize gotten      = TRY(self.recv(r, fd, &m_slice), usize);
         if (gotten > bucket_size) {
-            u32 gap = gotten - bucket_size;
+            u32 gap = static_cast<u32>(gotten) - bucket_size;
             TRY(m.resize(a, gotten), usize, SysResKind::NOMEM);
-            TRY(self.recv(r, fd, Slice<u8>::init(gap, m.ptr + bucket_size)));
+            m_slice = Slice<u8>::init(gap, m.ptr + bucket_size);
+            TRY(self.recv(r, fd, &m_slice), usize);
         }
 
         return gotten;
@@ -496,7 +492,7 @@ struct Socket {
         return self.recv_multishot(r, self.socket_fd, flags);
     }
     SysRes<None> cancel_recv_multishot(this Socket& self, IoUring* r) {
-        IO_TRY_ADD_AND_GET(r, r->cancel(self.udm.recv_cancel, self.udm.recv_multishot, 0), None);
+        IO_TRY_ADD_AND_GET(r->cancel(self.udm.recv_cancel, self.udm.recv_multishot, 0), None);
         return None();
     }
 };

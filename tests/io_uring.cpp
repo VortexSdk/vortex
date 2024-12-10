@@ -2,17 +2,26 @@
 
 #include <vortex/vortex.hpp>
 
-static u8 main() {
-    auto io_r = vortex::IoUring::init(4, 0, 0, 0);
-    vortex::assert(io_r.is_ok(), "Failed to initialize IoUring.");
-    auto io             = io_r.unwrap();
+static vortex::SysRes<vortex::None> main_w() {
+    vortex::IoUring io  = TRY(vortex::IoUring::init(4, 0, 0, 0));
 
     const char hello [] = "Hi there!\n";
     io.write(0, 0, hello, sizeof(hello));
 
     io.submit_and_wait(1);
-
     io.deinit();
+
+    return vortex::None();
+}
+
+static u8 main() {
+    vortex::SysRes<vortex::None> res = main_w();
+    if (res.is_err()) {
+        vortex::println("Error: ", static_cast<u8>(res.kind));
+        vortex::assert(false, "Failed to run the main function!");
+
+        return 1;
+    }
 
     return 0;
 }

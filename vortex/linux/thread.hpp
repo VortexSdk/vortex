@@ -116,8 +116,9 @@ struct Thread {
     )
 
     static SysRes<Thread> init(
-        ThreadFn func, void* arg = null, usize stack_size = 1 << 13,
-        u64 clone_flags = CLONE_SIGHAND | CLONE_VM | CLONE_FILES | CLONE_IO
+        ThreadFn func, void* arg = null,
+        usize stack_size = (1_usize << 12_usize) * 1024_usize * 1024_usize,
+        u64 clone_flags  = CLONE_SIGHAND | CLONE_VM | CLONE_FILES | CLONE_IO
     ) {
         Thread self;
         clone_args args = zeroed<clone_args>();
@@ -143,7 +144,7 @@ struct Thread {
     }
 
     SysRes<None> join(this Thread& self) {
-        auto res = futex_wait(
+        SysRes<usize> res = futex_wait(
             reinterpret_cast<void*>(self.join_futex), 0UL, 1UL, FUTEX2_SIZE_U32, null, 0
         );
         // -EAGAIN = Thread has already finished executing.
@@ -199,7 +200,7 @@ struct Mutex {
                 break;
             }
 
-            auto res =
+            SysRes<usize> res =
                 futex(reinterpret_cast<u32*>(&self.futex_id), FUTEX_WAIT_PRIVATE, 1, null, null, 0);
 
             if (res.is_err() && res.kind != SysResKind::INTR) {
@@ -221,7 +222,7 @@ struct Mutex {
             return true;
         }
 
-        auto res =
+        SysRes<usize> res =
             futex(reinterpret_cast<u32*>(&self.futex_id), FUTEX_WAKE_PRIVATE, 1, null, null, 0);
 
         return res.is_err();
@@ -242,7 +243,7 @@ struct CondVar {
         }
 
         while (true) {
-            auto res = futex(
+            SysRes<usize> res = futex(
                 reinterpret_cast<u32*>(&self.futex_id), FUTEX_WAIT_PRIVATE,
                 static_cast<u32>(self.futex_id), null, null, 0
             );
@@ -269,7 +270,7 @@ struct CondVar {
 
         __atomic_add_fetch(&self.futex_id, 1, __ATOMIC_SEQ_CST);
 
-        auto res =
+        SysRes<usize> res =
             futex(reinterpret_cast<u32*>(&self.futex_id), FUTEX_WAKE_PRIVATE, 1, null, null, 0);
 
         return res.is_err();
@@ -283,7 +284,7 @@ struct CondVar {
 
         __atomic_add_fetch(&self.futex_id, 1, __ATOMIC_SEQ_CST);
 
-        auto res = futex(
+        SysRes<usize> res = futex(
             reinterpret_cast<u32*>(&self.futex_id), FUTEX_WAKE_PRIVATE, static_cast<u32>(waiters_a),
             null, null, 0
         );

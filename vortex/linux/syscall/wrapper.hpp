@@ -745,9 +745,6 @@ static SysRes<usize>
 keyctl(int cmd, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5) {
     return syscall(__NR_keyctl, cmd, arg2, arg3, arg4, arg5);
 }
-static SysRes<usize> clone3(struct clone_args *uargs, usize size) {
-    return syscall(__NR_clone3, uargs, size);
-}
 static SysRes<usize>
 execve(const char *filename, const char *const *argv, const char *const *envp) {
     return syscall(__NR_execve, filename, argv, envp);

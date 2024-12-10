@@ -6,21 +6,18 @@ template <typename T> static bool is_aligned(const T *ptr) {
     return (reinterpret_cast<usize>(ptr) % alignof(T)) == 0;
 }
 
-static u8 main() {
-    auto p_r = vortex::PageAllocator::init(2);
-    vortex::assert(p_r.is_ok(), "Failed to allocate pages!");
-
-    auto p = p_r.unwrap();
+static vortex::SysRes<vortex::None> main_w() {
+    vortex::PageAllocator p = TRY(vortex::PageAllocator::init(2));
     vortex::assert(p.len == 2 * PAGE_SIZE, "Invalid number of allocated pages!");
 
-    auto a        = vortex::Allocator<vortex::Arena>::init(p.len, p.ptr);
+    vortex::Allocator<vortex::Arena> a = vortex::Allocator<vortex::Arena>::init(p.len, p.ptr);
 
-    const auto m1 = a.alloc<u8>(25);
+    const vortex::Slice<u8> m1         = a.alloc<u8>(25);
     vortex::assert(m1.ptr != NULL, "Failed to allocate memory from the Arena!");
     vortex::assert(is_aligned<u8>(m1.ptr), "Unaligned memory!");
     vortex::assert(a.state.pos == 25 * sizeof(u8), "Invalid Arena position!");
 
-    const auto m2 = a.alloc<vortex::PageAllocator>(172);
+    const vortex::Slice<vortex::PageAllocator> m2 = a.alloc<vortex::PageAllocator>(172);
     vortex::assert(m2.ptr != NULL, "Failed to allocate memory from the Arena!");
     vortex::assert(is_aligned<vortex::PageAllocator>(m2.ptr), "Unaligned memory!");
     vortex::assert(
@@ -31,14 +28,27 @@ static u8 main() {
         "Invalid Arena position!"
     );
 
-    const auto m3 = a.alloc<float>(172);
+    const vortex::Slice<float> m3 = a.alloc<float>(172);
     vortex::assert(m3.ptr != NULL, "Failed to allocate memory from the Arena!");
     vortex::assert(is_aligned<float>(m3.ptr), "Unaligned memory!");
 
-    const auto m4 = a.alloc<long double>(172);
+    const vortex::Slice<long double> m4 = a.alloc<long double>(172);
     vortex::assert(m4.ptr != NULL, "Failed to allocate memory from the Arena!");
     vortex::assert(is_aligned<long double>(m4.ptr), "Unaligned memory!");
 
     p.deinit();
+
+    return vortex::None();
+}
+
+static u8 main() {
+    vortex::SysRes<vortex::None> res = main_w();
+    if (res.is_err()) {
+        vortex::println("Error: ", static_cast<u8>(res.kind));
+        vortex::assert(false, "Failed to run the main function!");
+
+        return 1;
+    }
+
     return 0;
 }

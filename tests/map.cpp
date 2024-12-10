@@ -2,16 +2,12 @@
 
 #include <vortex/vortex.hpp>
 
-static u8 main() {
-    auto p_r = vortex::PageAllocator::init(2);
-    vortex::assert(p_r.is_ok(), "Failed to allocate pages!");
-    auto p       = p_r.unwrap();
-    auto a       = vortex::Allocator<vortex::Arena>::init(p.len, p.ptr);
+static vortex::SysRes<vortex::None> main_w() {
+    vortex::PageAllocator p            = TRY(vortex::PageAllocator::init(2));
+    vortex::Allocator<vortex::Arena> a = vortex::Allocator<vortex::Arena>::init(p.len, p.ptr);
 
     // Test initialization
-    auto map_res = vortex::Map<int, long>::init(&a, 32);
-    vortex::assert(map_res.is_ok(), "Map initialization should succeed!");
-    auto map = map_res.unwrap();
+    vortex::Map<int, long> map         = TRY((vortex::Map<int, long>::init(&a, 32)));
 
     // Triggering Rehash
     for (usize i = 1; i < 100; i++) {
@@ -39,6 +35,18 @@ static u8 main() {
     // Clean up
     map.deinit(&a);
     p.deinit();
+
+    return vortex::None();
+}
+
+static u8 main() {
+    vortex::SysRes<vortex::None> res = main_w();
+    if (res.is_err()) {
+        vortex::println("Error: ", static_cast<u8>(res.kind));
+        vortex::assert(false, "Failed to run the main function!");
+
+        return 1;
+    }
 
     return 0;
 }

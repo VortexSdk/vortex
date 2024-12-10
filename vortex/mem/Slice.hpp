@@ -147,8 +147,8 @@ template <typename T> struct SliceWithPos {
         if (self.pos >= (self.slice.len - 1)) [[unlikely]]
             return null;
 
-        auto ptr = &self.slice.ptr [self.pos];
-        *ptr     = move(v);
+        T *ptr = &self.slice.ptr [self.pos];
+        *ptr   = move(v);
         self.pos++;
 
         return ptr;
@@ -174,7 +174,7 @@ template <typename T> struct SliceWithPos {
         for (usize i = 0; self.pos < new_pos; i++)
             *self.slice.get_unchecked(self.pos + i) = *v->get_unchecked(i);
 
-        auto ptr = self.slice.get_unchecked(self.pos);
+        T *ptr   = self.slice.get_unchecked(self.pos);
         self.pos = new_pos;
 
         return Slice<T>::init(v->len, ptr);

@@ -2,17 +2,24 @@
 
 #include <vortex/vortex.hpp>
 
-static u8 main() {
-    auto p_r = vortex::PageAllocator::init(2);
-    vortex::assert(p_r.is_ok(), "Failed to allocate pages!");
-    auto p     = p_r.unwrap();
-    auto a     = vortex::Allocator<vortex::Arena>::init(p.len, p.ptr);
+static vortex::SysRes<vortex::None> main_w() {
+    vortex::PageAllocator p            = TRY(vortex::PageAllocator::init(2));
+    vortex::Allocator<vortex::Arena> a = vortex::Allocator<vortex::Arena>::init(p.len, p.ptr);
 
-    auto vec_r = vortex::Vec<u8>::init(&a);
-    vortex::assert(vec_r.is_ok(), "Failed to allocate vec!");
-    auto vec = vec_r.unwrap();
-
+    vortex::Vec<u8> vec                = TRY(vortex::Vec<u8>::init(&a));
     vec.deinit(&a);
+
+    return vortex::None();
+}
+
+static u8 main() {
+    vortex::SysRes<vortex::None> res = main_w();
+    if (res.is_err()) {
+        vortex::println("Error: ", static_cast<u8>(res.kind));
+        vortex::assert(false, "Failed to run the main function!");
+
+        return 1;
+    }
 
     return 0;
 }

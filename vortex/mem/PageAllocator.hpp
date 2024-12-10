@@ -14,13 +14,14 @@ struct PageAllocator {
 
     static SysRes<PageAllocator> init(usize c) {
         usize l = c * PAGE_SIZE;
-        auto r  = mmap(
-            NULL, l, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE,
-            18446744073709551615_usize, 0
-        );
-        return SysRes<PageAllocator>::from_kind(
-            move(PageAllocator(l, reinterpret_cast<u8 *>(r.unsafe_unwrap()))), r.kind
-        );
+        u8 *r =
+            TRY(mmap(
+                    NULL, l, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE,
+                    18446744073709551615_usize, 0
+                ),
+                PageAllocator);
+
+        return PageAllocator(l, r);
     }
 
     void deinit(this PageAllocator &self) {

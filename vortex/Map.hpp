@@ -118,9 +118,9 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct N
 
     template <AllocatorStrategy U>
     bool rehash(this CURRENT_MAP &self, Allocator<U> *a, usize new_capacity) {
-        auto res = CURRENT_MAP::init(a, new_capacity);
+        SysRes<CURRENT_MAP> res = CURRENT_MAP::init(a, new_capacity);
         if (res.is_err()) return true;
-        auto new_map = res.unwrap();
+        CURRENT_MAP new_map = res.unwrap();
 
         for (usize i = 0; i < self.entries.len; i++) {
             MapEntry<T, Y> *entry = self.entries [i];
@@ -138,7 +138,7 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct N
     template <AllocatorStrategy U> bool rehash_if_needed(this CURRENT_MAP &self, Allocator<U> *a) {
         if ((static_cast<double>(self.count) / static_cast<double>(self.entries.len)) >
             static_cast<double>(CONFIG.max_load_factor / 100.0)) [[unlikely]] {
-            const auto res = self.rehash(a, self.entries.len * 2);
+            const bool res = self.rehash(a, self.entries.len * 2);
             if (res) return false;
         } else return false;
 
@@ -196,17 +196,17 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct M
     template <AllocatorStrategy U>
     static SysRes<CURRENT_MAP> init(Allocator<U> *a, usize capacity = 128) {
         CURRENT_MAP m;
-        capacity        = ceilPowerOfTwo(capacity);
-        m.key_value_len = capacity;
-        auto ncm_res    = CURRENT_NCM::init_cap_unchecked(a, capacity);
+        capacity                    = ceilPowerOfTwo(capacity);
+        m.key_value_len             = capacity;
+        SysRes<CURRENT_NCM> ncm_res = CURRENT_NCM::init_cap_unchecked(a, capacity);
         if (ncm_res.is_err()) return ncm_res.template return_err<CURRENT_MAP>();
-        m.ncm               = move(ncm_res.unwrap());
+        m.ncm                   = move(ncm_res.unwrap());
 
-        const auto keys_res = a->template alloc<T>(capacity);
+        const Slice<T> keys_res = a->template alloc<T>(capacity);
         if (keys_res.is_empty()) return SysRes<CURRENT_MAP>::from_err(SysResKind::NOMEM);
-        m.keys                = keys_res.ptr;
+        m.keys                    = keys_res.ptr;
 
-        const auto values_res = a->template alloc<Y>(capacity);
+        const Slice<Y> values_res = a->template alloc<Y>(capacity);
         if (values_res.is_empty()) return SysRes<CURRENT_MAP>::from_err(SysResKind::NOMEM);
         m.values = values_res.ptr;
 
@@ -226,14 +226,14 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct M
     template <AllocatorStrategy U>
     MapInsertRes insert(this CURRENT_MAP &self, Allocator<U> *a, const T key, const Y value) {
         if (self.ncm.rehash_if_needed(a)) [[unlikely]] {
-            auto keys_alloc_res = a->resize_or_alloc(
+            Slice<T> keys_alloc_res = a->resize_or_alloc(
                 Slice<T>::init(self.key_value_len, self.keys), self.ncm.entries.len
             );
             if (keys_alloc_res.is_empty()) {
                 self.ncm.remove(key);
                 return MapInsertRes::OutOfMemory;
             }
-            auto values_alloc_res = a->resize_or_alloc(
+            Slice<Y> values_alloc_res = a->resize_or_alloc(
                 Slice<Y>::init(self.key_value_len, self.values), self.ncm.entries.len
             );
             if (values_alloc_res.is_empty()) {
@@ -253,12 +253,12 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct M
 
         MapEntry<T, Y> *entry = self.ncm.entries [result.index];
         if (!result.found) {
-            auto *new_key   = &self.keys [self.ncm.count];
-            auto *new_value = &self.values [self.ncm.count];
-            *new_key        = move(key);
-            *new_value      = move(value);
-            *entry          = MapEntry<T, Y>{
-                         .key = new_key, .value = new_value, .status = MapEntryStatus::Filled
+            T *new_key   = &self.keys [self.ncm.count];
+            Y *new_value = &self.values [self.ncm.count];
+            *new_key     = move(key);
+            *new_value   = move(value);
+            *entry       = MapEntry<T, Y>{
+                      .key = new_key, .value = new_value, .status = MapEntryStatus::Filled
             };
             self.ncm.count++;
         } else {

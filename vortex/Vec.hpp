@@ -10,8 +10,8 @@ template <typename T> struct Vec {
 
     template <AllocatorStrategy U> static SysRes<Vec<T>> init(Allocator<U> *a, u32 capacity = 8) {
         Vec<T> v;
-        v.cap                = capacity;
-        const auto alloc_res = a->template alloc<T>(capacity);
+        v.cap                    = capacity;
+        const Slice<T> alloc_res = a->template alloc<T>(capacity);
         if (alloc_res.is_empty()) return SysRes<Vec<T>>::from_err(SysResKind::NOMEM);
         v.ptr = alloc_res.ptr;
 
@@ -20,13 +20,10 @@ template <typename T> struct Vec {
 
     template <AllocatorStrategy U>
     static SysRes<Vec<T>> from(Allocator<U> *a, const Slice<const T> *const slice) {
-        auto init_res = Vec<T>::init(a, slice->len);
-        if (init_res.is_error()) return init_res;
-
-        auto &v = init_res.unwrap();
+        Vec<T> v = TRY(Vec<T>::init(a, slice->len));
 
         memcpy(
-            reinterpret_cast<void *>(v.data.ptr), reinterpret_cast<const void *>(slice->ptr),
+            reinterpret_cast<void *>(v.ptr), reinterpret_cast<const void *>(slice->ptr),
             slice->len * sizeof(T)
         );
         v.len = slice->len;
@@ -49,7 +46,7 @@ template <typename T> struct Vec {
         if (new_cap <= self.cap) [[unlikely]]
             return false;
 
-        auto resize_res =
+        Slice<T> resize_res =
             a->template resize_or_alloc<T>(Slice<T>::init(self.cap, self.ptr), new_cap);
         if (resize_res.is_empty()) return true;
 
@@ -108,12 +105,10 @@ template <typename T> struct Vec {
     }
 
     template <AllocatorStrategy U> SysRes<Vec<T>> clone(this const Vec<T> &self, Allocator<U> *a) {
-        auto init_res = Vec<T>::init(a, self.cap);
-        if (init_res.is_error()) return init_res;
+        Vec<T> v = TRY(Vec<T>::init(a, self.cap));
 
-        auto &v = init_res.unwrap();
         memcpy(
-            reinterpret_cast<void *>(v.data.ptr), reinterpret_cast<const void *>(self.ptr),
+            reinterpret_cast<void *>(v.ptr), reinterpret_cast<const void *>(self.ptr),
             self.len * sizeof(T)
         );
         v.len = self.len;
