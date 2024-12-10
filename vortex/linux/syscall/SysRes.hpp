@@ -1,6 +1,7 @@
 #pragma once
 
-#include "../../diagnostics.hpp"
+#include "../../mem/utils.hpp"
+#include "../../metap/diagnostics.hpp"
 #include "../../metap/metap.hpp"
 #include "../../numbers.hpp"
 #include "../../panic.hpp"
@@ -336,7 +337,7 @@ template <typename T> struct SysRes {
     T res;
     bool safety_called;
 
-    SysRes(T r, SysResKind k) : res(move(r)), kind(k) {}
+    SysRes(T r, SysResKind k) : res(move(r)), kind(k), line(0), file(null) {}
 
     static void err_panic() {
         panic("Accessing the value inside SysRes when it contains an error. "
@@ -346,7 +347,12 @@ template <typename T> struct SysRes {
   public:
     SysResKind kind;
 
-    SysRes() : res(move(T())), safety_called(false), kind(SysResKind::SUCCESS) {}
+    u64 line;
+    const char *file;
+
+    SysRes()
+        : res(move(T())), safety_called(false), kind(SysResKind::SUCCESS), line(0), file(null) {}
+    SysRes(T v) : SysRes(move(v), SysResKind::SUCCESS) {}
 
     static SysRes<T> from_kind(T r, SysResKind k) {
         return SysRes<T>(move(r), k);
@@ -424,6 +430,10 @@ template <typename T> struct SysRes {
         return self.template unsafe_swap<Y>(move(d));
     }
 
+    SysRes<None> err_or_none(this const SysRes &self) {
+        return self.template unsafe_swap<None>(None());
+    }
+
     T unsafe_unwrap(this SysRes &self) {
         return move(self.res);
     }
@@ -441,33 +451,32 @@ template <typename T> struct SysRes {
 
 using IoUringRes = SysRes<CqeRes>;
 
-#define PP_CONCAT_(A, B)         A##B
-#define PP_CONCAT(A, B)          PP_CONCAT_(A, B)
-#define UNIQUE_NAME(prefix, ctr) PP_CONCAT(prefix, PP_CONCAT(_, PP_CONCAT(__LINE__, ctr)))
+#define PP_CONCAT_(A, B)    A##B
+#define PP_CONCAT(A, B)     PP_CONCAT_(A, B)
+#define UNIQUE_NAME(prefix) PP_CONCAT(prefix, PP_CONCAT(_, PP_CONCAT(__LINE__, __COUNTER__)))
 
-#define __TRY1_INNER(expr, ctr)                                                                    \
+#define __TRY1(expr, submitted)                                                                    \
     ({                                                                                             \
-        auto UNIQUE_NAME(try1, ctr) = (expr);                                                      \
-        if (UNIQUE_NAME(try1, ctr).is_err()) [[unlikely]]                                          \
-            return UNIQUE_NAME(try1, ctr);                                                         \
-        ::vortex::move(UNIQUE_NAME(try1, ctr).unwrap());                                           \
+        auto submitted = ::vortex::move(expr);                                                     \
+        if (submitted.is_err()) [[unlikely]]                                                       \
+            return submitted;                                                                      \
+        ::vortex::move(submitted.unwrap());                                                        \
     })
-#define __TRY2_INNER(expr, t, ctr)                                                                 \
+#define __TRY2(expr, t, submitted)                                                                 \
     ({                                                                                             \
-        auto UNIQUE_NAME(try2, ctr) = (expr);                                                      \
-        if (UNIQUE_NAME(try2, ctr).is_err()) [[unlikely]]                                          \
-            return UNIQUE_NAME(try2, ctr).template return_err<t>();                                \
-        ::vortex::move(UNIQUE_NAME(try2, ctr).unwrap());                                           \
+        auto submitted = ::vortex::move(expr);                                                     \
+        if (submitted.is_err()) [[unlikely]]                                                       \
+            return submitted.template return_err<t>();                                             \
+        ::vortex::move(submitted.unwrap());                                                        \
     })
-#define __TRY3_INNER(expr, t, e, ctr)                                                              \
+#define __TRY3(expr, t, e, submitted)                                                              \
     ({                                                                                             \
-        auto UNIQUE_NAME(try3, ctr) = (expr);                                                      \
-        if (UNIQUE_NAME(try3, ctr) == reinterpret_cast<decltype(UNIQUE_NAME(try3, ctr))>(0))       \
-            [[unlikely]]                                                                           \
+        auto submitted = ::vortex::move(expr);                                                     \
+        if (submitted == reinterpret_cast<decltype(submitted)>(0)) [[unlikely]]                    \
             return ::vortex::SysRes<t>::from_err(e);                                               \
-        ::vortex::move(UNIQUE_NAME(try3, ctr));                                                    \
+        ::vortex::move(submitted);                                                                 \
     })
-#define TRY1(...) __TRY1_INNER(__VA_ARGS__, __COUNTER__)
-#define TRY2(...) __TRY2_INNER(__VA_ARGS__, __COUNTER__)
-#define TRY3(...) __TRY3_INNER(__VA_ARGS__, __COUNTER__)
-#define TRY(...)  VFUNC(TRY, __VA_ARGS__)
+#define TRY1(...) __TRY1(__VA_ARGS__, UNIQUE_NAME(submitted))
+#define TRY2(...) __TRY2(__VA_ARGS__, UNIQUE_NAME(submitted))
+#define TRY3(...) __TRY3(__VA_ARGS__, UNIQUE_NAME(submitted))
+#define TRY(...)  _VFUNC(TRY, __VA_ARGS__)

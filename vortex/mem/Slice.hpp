@@ -1,26 +1,12 @@
 #pragma once
 
+#include "../metap/structs.hpp"
 #include "utils.hpp"
 
 template <typename T> struct FixedSlice;
 
 template <typename T> struct Slice {
-    usize len{0};
-    T *ptr{null<T>()};
-
-    Slice() : len(0), ptr(null<T>()) {}
-    Slice(usize _len, T *_ptr) : len(_len), ptr(_ptr) {}
-
-    Slice(const Slice<T> &t)         = delete;
-    Slice &operator=(const Slice &t) = delete;
-    Slice(Slice &&s) noexcept : len(exchange(s.len, 0_usize)), ptr(exchange(s.ptr, null<T>())) {}
-    Slice &operator=(Slice &&other) noexcept {
-        if (this != &other) {
-            ptr = exchange(other.ptr, null<T>());
-            len = exchange(other.len, 0_usize);
-        }
-        return *this;
-    }
+    PIN_STRUCT(Slice, len, 0_usize, ptr, reinterpret_cast<T *>(0))
 
     template <usize Y> Slice(T (&arr) [Y]) : len(Y), ptr(arr) {}
 
@@ -37,7 +23,7 @@ template <typename T> struct Slice {
     }
 
     bool is_empty(this const Slice &self) {
-        return self.ptr == NULL;
+        return self.ptr == null;
     }
 
     T *get_unchecked(this const Slice &self, usize i) {
@@ -46,7 +32,7 @@ template <typename T> struct Slice {
 
     T *get(this const Slice &self, usize i) {
         if (i >= self.len) [[unlikely]]
-            return null<T>();
+            return null;
 
         return self.get_unchecked(i);
     }
@@ -79,10 +65,10 @@ template <typename T> struct FixedSlice {
     FixedSlice(const FixedSlice &t)            = delete;
     FixedSlice &operator=(const FixedSlice &t) = delete;
     FixedSlice(FixedSlice &&s) noexcept
-        : len(exchange(s.len, 0_usize)), ptr(exchange(s.ptr, null<T>())) {}
+        : len(exchange(s.len, 0_usize)), ptr(exchange(s.ptr, null)) {}
     FixedSlice &operator=(FixedSlice &&other) noexcept {
         if (this != &other) {
-            ptr = exchange(other.ptr, null<T>());
+            ptr = exchange(other.ptr, null);
             len = exchange(other.len, 0_usize);
         }
         return *this;
@@ -118,20 +104,7 @@ template <typename T> struct FixedSlice {
 };
 
 template <typename T> struct SliceWithPos {
-    usize pos{0};
-    Slice<T> slice{};
-
-    SliceWithPos(const SliceWithPos &t)            = delete;
-    SliceWithPos &operator=(const SliceWithPos &t) = delete;
-    SliceWithPos(SliceWithPos &&s) noexcept
-        : pos(exchange(s.pos, 0_usize)), slice(exchange(s.slice, Slice<T>())) {}
-    SliceWithPos &operator=(SliceWithPos &&other) noexcept {
-        if (this != &other) {
-            slice = exchange(other.slice, Slice<T>());
-            pos   = exchange(other.pos, 0_usize);
-        }
-        return *this;
-    }
+    PIN_STRUCT(SliceWithPos, pos, 0_usize, slice, (Slice<T>()))
 
     operator Slice<T>(this const SliceWithPos & self) {
         return self.slice;
@@ -158,7 +131,7 @@ template <typename T> struct SliceWithPos {
     }
 
     T *get(this const SliceWithPos &self, usize i) {
-        if (i > self.pos) return null<T>();
+        if (i > self.pos) return null;
 
         return self.get_unchecked(i);
     }
@@ -172,7 +145,7 @@ template <typename T> struct SliceWithPos {
 
     T *put(this SliceWithPos &self, const T v) {
         if (self.pos >= (self.slice.len - 1)) [[unlikely]]
-            return null<T>();
+            return null;
 
         auto ptr = &self.slice.ptr [self.pos];
         *ptr     = move(v);

@@ -1,14 +1,13 @@
 #pragma once
 
 #include "../linux/io_uring.hpp"
-#include "../linux/syscall/syscall.hpp"
 #include "../linux/syscall/SysRes.hpp"
 #include "../linux/syscall/wrapperHelper.hpp"
-#include "../mem/mem.hpp"
+#include "../mem/Allocator.hpp"
 #include "../mem/utils.hpp"
+#include "../metap/structs.hpp"
 #include "../numbers.hpp"
-#include "../Vec.hpp"
-#include "vortex/mem/Allocator.hpp"
+#include "vortex/writer.hpp"
 
 enum {
     AF_INET        = 2,        // IPv4
@@ -267,47 +266,10 @@ enum class SocketType {
 };
 
 struct SocketConfig {
-    SocketDomain domain{SocketDomain::Ipv4};
-    SocketType type{SocketType::TCP};
-    const char* addr{null<char>()};
-    u16 port{8080};
-    int max_queued_conns{4096};
-
-    SocketConfig()
-        : domain(SocketDomain::Ipv4), type(SocketType::TCP), addr(null<char>()), port(8080),
-          max_queued_conns(4096) {}
-    SocketConfig(const SocketConfig& t) {
-        domain           = t.domain;
-        type             = t.type;
-        addr             = t.addr;
-        port             = t.port;
-        max_queued_conns = t.max_queued_conns;
-    }
-    SocketConfig& operator=(const SocketConfig& t) {
-        if (this != &t) {
-            domain           = t.domain;
-            type             = t.type;
-            addr             = t.addr;
-            port             = t.port;
-            max_queued_conns = t.max_queued_conns;
-        }
-
-        return *this;
-    }
-    SocketConfig(SocketConfig&& s) noexcept
-        : domain(exchange(s.domain, SocketDomain::Ipv4)), type(exchange(s.type, SocketType::TCP)),
-          addr(exchange(s.addr, null<char>())), port(exchange(s.port, 8080_u16)),
-          max_queued_conns(exchange(s.max_queued_conns, 4096)) {}
-    SocketConfig& operator=(SocketConfig&& other) noexcept {
-        if (this != &other) {
-            domain           = exchange(other.domain, SocketDomain::Ipv4);
-            type             = exchange(other.type, SocketType::TCP);
-            addr             = exchange(other.addr, null<char>());
-            port             = exchange(other.port, 8080_u16);
-            max_queued_conns = exchange(other.max_queued_conns, 4096);
-        }
-        return *this;
-    }
+    VAL_STRUCT(
+        SocketConfig, domain, SocketDomain::Ipv4, type, SocketType::TCP, addr,
+        reinterpret_cast<const char*>(0), port, 8080_u16, max_queued_conns, 4096
+    )
 
     u16 port_to_net(this const SocketConfig& self) {
         return htons(self.port);
@@ -352,7 +314,7 @@ struct SocketConfig {
     }
 
     void fill_addr(this const SocketConfig& self, sockaddr_in* s) {
-        if (self.addr != null<char>())
+        if (self.addr != null)
             inet_pton(self.domain_as_int(), self.addr, reinterpret_cast<void*>(&s->sin_addr));
     }
 
@@ -373,79 +335,18 @@ struct MultishotOp {
 };
 
 struct SocketUserDataMap {
-    u64 socket{I64_MAX};
-    u64 bind{I64_MAX - 1};
-    u64 listen{I64_MAX - 2};
-    u64 connect{I64_MAX - 3};
-    u64 socket_fd_close{I64_MAX - 4};
-    u64 accept_fd_close{I64_MAX - 5};
-    u64 recv_cancel{I64_MAX - 6};
-    u64 accept{I64_MAX - 7};
-    u64 recv{I64_MAX - 8};
-    u64 send{I64_MAX - 9};
-    u64 accept_multishot{I64_MAX - 10};
-    u64 recv_multishot{I64_MAX - 11};
-
-    SocketUserDataMap(const SocketUserDataMap& t) {
-        socket           = t.socket;
-        bind             = t.bind;
-        listen           = t.listen;
-        connect          = t.connect;
-        socket_fd_close  = t.socket_fd_close;
-        accept_fd_close  = t.accept_fd_close;
-        recv_cancel      = t.recv_cancel;
-        accept           = t.accept;
-        recv             = t.recv;
-        send             = t.send;
-        accept_multishot = t.accept_multishot;
-        recv_multishot   = t.recv_multishot;
-    }
-    SocketUserDataMap& operator=(const SocketUserDataMap& t) {
-        if (this != &t) {
-            socket           = t.socket;
-            bind             = t.bind;
-            listen           = t.listen;
-            connect          = t.connect;
-            socket_fd_close  = t.socket_fd_close;
-            accept_fd_close  = t.accept_fd_close;
-            recv_cancel      = t.recv_cancel;
-            accept           = t.accept;
-            recv             = t.recv;
-            send             = t.send;
-            accept_multishot = t.accept_multishot;
-            recv_multishot   = t.recv_multishot;
-        }
-
-        return *this;
-    }
-    SocketUserDataMap(u64 base)
-        : socket(base), bind(base - 1), listen(base - 2), connect(base - 3),
-          socket_fd_close(base - 4), accept_fd_close(base - 5), recv_cancel(base - 6),
-          accept(base - 7), recv(base - 8), send(base - 9), accept_multishot(base - 10),
-          recv_multishot(base - 11) {}
-    SocketUserDataMap() : SocketUserDataMap(I64_MAX) {}
+    VAL_STRUCT(
+        SocketUserDataMap, socket, 18446744073709551615_u64, bind, 18446744073709551614_u64, listen,
+        18446744073709551613_u64, connect, 18446744073709551612_u64, socket_fd_close,
+        18446744073709551611_u64, accept_fd_close, 18446744073709551610_u64, recv_cancel,
+        18446744073709551609_u64, accept, 18446744073709551608_u64, recv, 18446744073709551607_u64,
+        send, 18446744073709551606_u64, accept_multishot, 18446744073709551605_u64, recv_multishot,
+        18446744073709551604_u64
+    )
 };
 
 struct Socket {
-    FdI socket_fd{-1};
-    SocketConfig conf{};
-    SocketUserDataMap udm{};
-
-    Socket(const Socket& t)            = delete;
-    Socket& operator=(const Socket& t) = delete;
-    Socket() : socket_fd(-1), conf(move(SocketConfig())), udm() {}
-    Socket(FdI _fd, SocketConfig _conf, SocketUserDataMap _udm)
-        : socket_fd(move(_fd)), conf(move(_conf)), udm(move(_udm)) {}
-    Socket(Socket&& s) noexcept
-        : socket_fd(exchange(s.socket_fd, -1)), conf(move(s.conf)), udm(move(s.udm)) {}
-    Socket& operator=(Socket&& other) noexcept {
-        if (this != &other) {
-            socket_fd = exchange(other.socket_fd, -1);
-            conf      = move(other.conf);
-            udm       = move(other.udm);
-        }
-        return *this;
-    }
+    PIN_STRUCT(Socket, socket_fd, -1, conf, SocketConfig{}, udm, SocketUserDataMap{})
 
     static SysRes<Socket>
     init(IoUring* r, SocketConfig config, SocketUserDataMap _udm = {}, bool is_server = true) {
@@ -491,7 +392,7 @@ struct Socket {
         }
         IO_TRY_ALL_AND_SUBMIT(r, static_cast<usize>(wait_nr == 2 ? 2 : 1), Socket);
 
-        return SysRes<Socket>::from_successful(move(self));
+        return move(self);
     }
     static SysRes<Socket>
     init_server(IoUring* r, SocketConfig config, SocketUserDataMap udm = SocketUserDataMap()) {
@@ -507,32 +408,25 @@ struct Socket {
             self.cancel_accept_multishot(r);
             IO_TRY_ADD_AND_GET(r, r->close(self.udm.socket_fd_close, self.socket_fd), None);
         }
-        return SysRes<None>::from_successful(None());
+        return None();
     }
 
     SysRes<FdU> accept(this Socket& self, IoUring* r) {
-        return SysRes<FdU>::from_successful(static_cast<FdU>(
-            IO_TRY_ADD_AND_GET(
-                r,
-                r->accept(self.udm.accept, self.socket_fd, null<sockaddr>(), null<socklen_t>(), 0),
-                FdU
-            )
+        return static_cast<FdU>(
+            IO_TRY_ADD_AND_GET(r, r->accept(self.udm.accept, self.socket_fd, null, null, 0), FdU)
                 .res
-        ));
+        );
     }
 
     SysRes<None> accept_multishot(this Socket& self, IoUring* r) {
         IO_TRY_ADD(
-            r->accept_multishot(
-                self.udm.accept_multishot, self.socket_fd, null<sockaddr>(), null<socklen_t>(), 0
-            ),
-            None
+            r->accept_multishot(self.udm.accept_multishot, self.socket_fd, null, null, 0), None
         );
-        return SysRes<None>::from_successful(None());
+        return None();
     }
     SysRes<None> cancel_accept_multishot(this Socket& self, IoUring* r) {
         IO_TRY_ADD_AND_GET(r, r->cancel_fd(self.udm.accept_fd_close, self.socket_fd, 0), None);
-        return SysRes<None>::from_successful(None());
+        return None();
     }
 
     template <typename T>
@@ -554,18 +448,18 @@ struct Socket {
                 }
             }
         }
-        return SysRes<None>::from_successful(None());
+        return None();
     }
 
     SysRes<usize> recv(this Socket& self, IoUring* r, FdI fd, Slice<u8>* buf) {
-        return SysRes<usize>::from_successful(static_cast<usize>(
+        return static_cast<usize>(
             IO_TRY_ADD_AND_GET(
                 r,
                 r->recv(self.udm.recv, fd, reinterpret_cast<void*>(buf->ptr), buf->len, MSG_TRUNC),
                 usize
             )
                 .res
-        ));
+        );
     }
     SysRes<usize> recv(this Socket& self, IoUring* r, Slice<u8>* buf) {
         return self.recv(r, self.socket_fd, move(buf));
@@ -592,17 +486,17 @@ struct Socket {
     SysRes<None> recv_multishot(this Socket& self, IoUring* r, FdI fd, u32 flags = 0) {
         IO_TRY_ADD(
             r->recv_multishot(
-                self.udm.recv_multishot, fd, null<void>(), 0, static_cast<int>(flags | MSG_TRUNC)
+                self.udm.recv_multishot, fd, null, 0, static_cast<int>(flags | MSG_TRUNC)
             ),
             None
         );
-        return SysRes<None>::from_successful(None());
+        return None();
     }
     SysRes<None> recv_multishot(this Socket& self, IoUring* r, u32 flags = 0) {
         return self.recv_multishot(r, self.socket_fd, flags);
     }
     SysRes<None> cancel_recv_multishot(this Socket& self, IoUring* r) {
         IO_TRY_ADD_AND_GET(r, r->cancel(self.udm.recv_cancel, self.udm.recv_multishot, 0), None);
-        return SysRes<None>::from_successful(None());
+        return None();
     }
 };

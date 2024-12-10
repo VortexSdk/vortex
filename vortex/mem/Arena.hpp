@@ -1,9 +1,8 @@
 #pragma once
 
-#include "../diagnostics.hpp"
+#include "../metap/diagnostics.hpp"
 #include "../numbers.hpp"
 #include "Allocator.hpp"
-#include "utils.hpp"
 
 DIAG_IGNORE_GCC_PUSH("-Wattributes")
 

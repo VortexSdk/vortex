@@ -43,8 +43,16 @@ static_assert(sizeof(unsigned long long int) == 8, "`unsigned long long int` sho
 typedef unsigned long long int u64;
 #endif
 
-using isize       = i64;
-using usize       = u64;
+using isize = i64;
+using usize = u64;
+
+static_assert(sizeof(float) == 4, "`float` should be 4 bytes.");
+using f32 = float;
+static_assert(sizeof(double) == 8, "`double` should be 4 bytes.");
+using f64         = double;
+
+using f32_alias   = __attribute__((__may_alias__)) f32;
+using f64_alias   = __attribute__((__may_alias__)) f64;
 
 using u8_alias    = __attribute__((__may_alias__)) u8;
 using i8_alias    = __attribute__((__may_alias__)) i8;
@@ -87,6 +95,12 @@ constexpr usize operator""_usize(unsigned long long n) {
 constexpr isize operator""_isize(unsigned long long n) {
     return static_cast<isize>(n);
 }
+constexpr f32 operator""_f32(long double n) {
+    return static_cast<f32>(n);
+}
+constexpr f64 operator""_f64(long double n) {
+    return static_cast<f64>(n);
+}
 
 #define I8_MIN    (-128_i8)
 #define I8_MAX    (127_i8)
@@ -98,8 +112,17 @@ constexpr isize operator""_isize(unsigned long long n) {
 #define I32_MAX   (2147483647_i32)
 #define U32_MAX   (4294967295_u32)
 #define I64_MIN   (-9223372036854775808_i64)
-#define I64_MAX   (9223372036854775807_i64)
+#define I64_MAX   9223372036854775807_i64
 #define U64_MAX   (18446744073709551615_u64)
 #define ISIZE_MIN I64_MIN
 #define ISIZE_MAX I64_MAX
 #define USIZE_MAX U64_MAX
+
+#define F32_MIN   (-340282346638528859811704183484516925440.0_f32)
+#define F32_MAX   (340282346638528859811704183484516925440.0_f32)
+#define F64_MIN                                                                                                                                                                                                                                                                                                                   \
+    (-179769313486231570814527423731704356798070567525844996598917476803157260780028538760589558632766878171540458953514382464234321326889464182768467546703537516986049910576551282076245490090389328944075868508455133942304583236903222948165808559332123348274797826204144723168738177180919299881250404026184124858368.0_f64 \
+    )
+#define F64_MAX                                                                                                                                                                                                                                                                                                                  \
+    (179769313486231570814527423731704356798070567525844996598917476803157260780028538760589558632766878171540458953514382464234321326889464182768467546703537516986049910576551282076245490090389328944075868508455133942304583236903222948165808559332123348274797826204144723168738177180919299881250404026184124858368.0_f64 \
+    )

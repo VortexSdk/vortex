@@ -1,21 +1,12 @@
 #pragma once
 
-#include "linux/syscall/syscall.hpp"
 #include "mem/mem.hpp"
 #include "metap/metap.hpp"
 #include "numbers.hpp"
+#include "vortex/metap/structs.hpp"
 
 template <typename T> struct Vec {
-    u32 len{0};
-    u32 cap{0};
-    T *ptr{null<T>()};
-
-    Vec(const Vec &t)            = delete;
-    Vec &operator=(const Vec &t) = delete;
-    Vec() : len(0), cap(0), ptr(null<T>()) {}
-    Vec(Vec &&s) noexcept
-        : len(exchange(s.len, 0_u32)), cap(exchange(s.cap, 0_u32)),
-          ptr(exchange(s.ptr, null<T>())) {}
+    PIN_STRUCT(Vec, len, 0_u32, cap, 0_u32, ptr, reinterpret_cast<T *>(0))
 
     template <AllocatorStrategy U> static SysRes<Vec<T>> init(Allocator<U> *a, u32 capacity = 8) {
         Vec<T> v;
@@ -24,7 +15,7 @@ template <typename T> struct Vec {
         if (alloc_res.is_empty()) return SysRes<Vec<T>>::from_err(SysResKind::NOMEM);
         v.ptr = alloc_res.ptr;
 
-        return SysRes<Vec<T>>::from_successful(move(v));
+        return move(v);
     }
 
     template <AllocatorStrategy U>
@@ -40,7 +31,7 @@ template <typename T> struct Vec {
         );
         v.len = slice->len;
 
-        return SysRes<Vec<T>>::from_successful(move(v));
+        return move(v);
     }
 
     template <AllocatorStrategy U> void deinit(this Vec<T> &self, Allocator<U> *a) {
@@ -98,7 +89,7 @@ template <typename T> struct Vec {
 
     T *nth(this const Vec<T> &self, usize n) {
         if (n >= self.len) [[unlikely]]
-            return null<T>();
+            return null;
 
         return &self.ptr [n];
     }
@@ -127,7 +118,7 @@ template <typename T> struct Vec {
         );
         v.len = self.len;
 
-        return SysRes<Vec<T>>::from_successful(move(v));
+        return move(v);
     }
 };
 

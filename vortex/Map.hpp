@@ -1,11 +1,12 @@
 #pragma once
 
-#include "linux/syscall/syscall.hpp"
+#include "linux/syscall/SysRes.hpp"
 #include "math.hpp"
-#include "mem/mem.hpp"
+#include "mem/Allocator.hpp"
+#include "mem/utils.hpp"
+#include "metap/structs.hpp"
 #include "numbers.hpp"
 #include "rapidhash.hpp"
-#include "string.hpp"
 
 template <typename T> using MapEqlFn = bool (*)(const T, const T);
 template <typename T> bool default_map_eql_fn(const T a, const T b) {
@@ -35,8 +36,8 @@ enum class MapEntryStatus : u8 {
 };
 
 template <typename T, typename Y> struct MapEntry {
-    T *key{null<T>()};
-    Y *value{null<Y>()};
+    T *key{null};
+    Y *value{null};
     MapEntryStatus status{MapEntryStatus::Empty};
 };
 
@@ -56,29 +57,13 @@ struct MapSearchResult {
 };
 
 template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct NoStorageMap {
-    usize count{0};
-    Slice<MapEntry<T, Y>> entries{};
-
     using CURRENT_MAP = NoStorageMap<T, Y, CONFIG>;
-
     static_assert(
         CONFIG.max_load_factor >= 10 && CONFIG.max_load_factor < 100,
         "Invalid load factor for CONFIG.max_load_factor."
     );
 
-    NoStorageMap() {}
-    NoStorageMap(const NoStorageMap &t)            = delete;
-    NoStorageMap &operator=(const NoStorageMap &t) = delete;
-    NoStorageMap(NoStorageMap &&m) noexcept
-        : count(exchange(m.count, 0_usize)), entries(exchange(m.entries, Slice<MapEntry<T, Y>>())) {
-    }
-    NoStorageMap &operator=(NoStorageMap &&other) noexcept {
-        if (this != &other) {
-            count   = exchange(other.count, 0_usize);
-            entries = exchange(other.entries, Slice<MapEntry<T, Y>>());
-        }
-        return *this;
-    }
+    PIN_STRUCT(NoStorageMap, count, 0_usize, entries, (Slice<MapEntry<T, Y>>()))
 
     MapSearchResult
     find_index_inner(this const CURRENT_MAP &self, const T key, usize idx, usize end_idx) {
@@ -116,12 +101,11 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct N
         if (m.entries.is_empty()) return SysRes<CURRENT_MAP>::from_err(SysResKind::NOMEM);
 
         for (usize i = 0; i < capacity; i++) {
-            *m.entries [i] = MapEntry<T, Y>{
-                .key = null<T>(), .value = null<Y>(), .status = MapEntryStatus::Empty
-            };
+            *m.entries [i] =
+                MapEntry<T, Y>{.key = null, .value = null, .status = MapEntryStatus::Empty};
         }
 
-        return SysRes<CURRENT_MAP>::from_successful(move(m));
+        return move(m);
     }
     template <AllocatorStrategy U>
     static SysRes<CURRENT_MAP> init(Allocator<U> *a, usize capacity = 128) {
@@ -166,7 +150,7 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct N
         if (result.found) [[likely]]
             return self.entries [result.index]->value;
 
-        return null<Y>();
+        return null;
     }
 
     template <AllocatorStrategy U>
@@ -191,9 +175,8 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct N
     bool remove(this CURRENT_MAP &self, const T key) {
         MapSearchResult result = self.find_index(key);
         if (result.found) [[likely]] {
-            *self.entries [result.index] = MapEntry<T, Y>{
-                .key = null<T>(), .value = null<Y>(), .status = MapEntryStatus::Tombstone
-            };
+            *self.entries [result.index] =
+                MapEntry<T, Y>{.key = null, .value = null, .status = MapEntryStatus::Tombstone};
             return false;
         }
 
@@ -205,27 +188,10 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct M
     using CURRENT_MAP = Map<T, Y, CONFIG>;
     using CURRENT_NCM = NoStorageMap<T, Y, CONFIG>;
 
-    CURRENT_NCM ncm{};
-    T *keys{null<T>()};
-    Y *values{null<Y>()};
-    usize key_value_len{0};
-
-    Map() {}
-    Map(const Map &t)            = delete;
-    Map &operator=(const Map &t) = delete;
-    Map(Map &&m) noexcept
-        : ncm(exchange(m.ncm, move(CURRENT_NCM()))), keys(exchange(m.keys, null<T>())),
-          values(exchange(m.values, null<Y>())), key_value_len(exchange(m.key_value_len, 0_usize)) {
-    }
-    Map &operator=(Map &&other) noexcept {
-        if (this != &other) {
-            keys          = exchange(other.keys, null<T>());
-            values        = exchange(other.values, null<Y>());
-            ncm           = exchange(other.ncm, move(CURRENT_NCM{}));
-            key_value_len = exchange(other.key_value_len, 0_usize);
-        }
-        return *this;
-    }
+    PIN_STRUCT(
+        Map, ncm, (CURRENT_NCM()), keys, reinterpret_cast<T *>(0), values, reinterpret_cast<Y *>(0),
+        key_value_len, 0_usize
+    )
 
     template <AllocatorStrategy U>
     static SysRes<CURRENT_MAP> init(Allocator<U> *a, usize capacity = 128) {
@@ -244,7 +210,7 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct M
         if (values_res.is_empty()) return SysRes<CURRENT_MAP>::from_err(SysResKind::NOMEM);
         m.values = values_res.ptr;
 
-        return SysRes<CURRENT_MAP>::from_successful(move(m));
+        return move(m);
     }
 
     template <AllocatorStrategy U> void deinit(this CURRENT_MAP &self, Allocator<U> *a) {

@@ -42,3 +42,11 @@ template <typename T> constexpr T ceilPowerOfTwo(T n) {
 static usize max(usize a, usize b) {
     return (a > b) ? a : b;
 }
+
+template <typename T>
+    requires is_arithmetic_v<T>
+constexpr T abs(T value) {
+    if constexpr (is_signed_v<T>) {
+        return value < 0 ? -value : value;
+    } else return value;
+}

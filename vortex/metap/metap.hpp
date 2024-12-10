@@ -55,6 +55,7 @@ template <typename T> struct remove_volatile<volatile T> {
 template <typename T> struct remove_cv {
     typedef typename remove_volatile<typename remove_const<T>::type>::type type;
 };
+template <typename T> using remove_cv_t = typename remove_cv<T>::type;
 
 template <typename T> struct is_pointer_helper {
     static const bool value = false;
@@ -381,3 +382,25 @@ template <typename T> inline constexpr bool is_bounded_array_v = is_bounded_arra
 template <typename T> struct is_unbounded_array : false_type {};
 template <typename T> struct is_unbounded_array<T []> : true_type {};
 template <typename T> inline constexpr bool is_unbounded_array_v = is_unbounded_array<T>::value;
+
+template <typename T> struct is_floating_point : false_type {};
+template <> struct is_floating_point<float> : true_type {};
+template <> struct is_floating_point<double> : true_type {};
+
+template <typename T> struct is_signed : false_type {};
+template <> struct is_signed<signed char> : true_type {};
+template <> struct is_signed<short> : true_type {};
+template <> struct is_signed<int> : true_type {};
+template <> struct is_signed<long> : true_type {};
+template <> struct is_signed<long long> : true_type {};
+template <> struct is_signed<f32> : true_type {};
+template <> struct is_signed<f64> : true_type {};
+
+template <typename T> inline constexpr bool is_floating_point_v = is_floating_point<T>::value;
+template <typename T> inline constexpr bool is_signed_v         = is_signed<T>::value;
+
+template <typename T>
+struct is_arithmetic
+    : integral_constant<bool, is_integral<T>::value || is_floating_point<T>::value> {};
+
+template <typename T> inline constexpr bool is_arithmetic_v = is_arithmetic<T>::value;

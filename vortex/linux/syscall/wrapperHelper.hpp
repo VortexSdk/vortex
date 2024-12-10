@@ -1,10 +1,10 @@
 #pragma once
 
-#include "../../diagnostics.hpp"
+#include "../../metap/diagnostics.hpp"
 #include "../../metap/metap.hpp"
 #include "../../numbers.hpp"
 
-DIAG_IGNORE_CLANG_PUSH("-Weverything", "-Wreserved-identifier")
+DIAG_IGNORE_CLANG_PUSH("-Weverything")
 DIAG_IGNORE_GCC_PUSH("-Wall", "-Wextra")
 
 #include <asm-generic/poll.h>

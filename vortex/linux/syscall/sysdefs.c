@@ -227,7 +227,6 @@ long mremap(unsigned long addr, unsigned long old_len, unsigned long new_len, un
 long add_key(const char *_type, const char *_description, const void *_payload, size_t plen, key_serial_t destringid);
 long request_key(const char *_type, const char *_description, const char *_callout_info, key_serial_t destringid);
 long keyctl(int cmd, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5);
-long clone3(struct clone_args *uargs, size_t size);
 long execve(const char *filename, const char *const *argv, const char *const *envp);
 long fadvise64_64(int fd, loff_t offset, loff_t len, int advice);
 long swapon(const char *specialfile, int swap_flags);

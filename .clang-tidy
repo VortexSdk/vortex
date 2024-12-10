@@ -5,4 +5,4 @@ ExcludeHeaderFilterRegex: '/^vortex\/mem\/musl.hpp$/'
 InheritParentConfig: false
 HeaderFileExtensions: ['h','hpp']
 ImplementationFileExtensions: ['c','cpp']
-Checks: 'linuxkernel-*, clang-analyzer-*, llvm-*, performance-*, modernize-*, misc-*, -llvm-header-guard, -clang-diagnostic-unused-template, -modernize-avoid-c-arrays, -misc-header-include-cycle, -misc-include-cleaner, -misc-use-anonymous-namespace, -misc-non-private-member-variables-in-classes, -modernize-macro-to-enum, -modernize-use-trailing-return-type, -performance-no-int-to-ptr, -modernize-use-nullptr, -misc-definitions-in-headers, -clang-diagnostic-*'
+Checks: 'linuxkernel-*, clang-analyzer-*, llvm-*, performance-*, modernize-*, misc-*, -clang-diagnostic-*, -llvm-header-guard, -clang-diagnostic-unused-template, -modernize-avoid-c-arrays, -misc-header-include-cycle, -misc-include-cleaner, -misc-use-anonymous-namespace, -misc-non-private-member-variables-in-classes, -modernize-macro-to-enum, -modernize-use-trailing-return-type, -performance-no-int-to-ptr, -modernize-use-nullptr, -misc-definitions-in-headers' 

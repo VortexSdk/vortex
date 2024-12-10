@@ -7,8 +7,7 @@
 DIAG_IGNORE_GCC_PUSH("-Wundef", "-Wunused-variable")
 DIAG_IGNORE_CLANG_PUSH(
     "-Wundef", "-Wunused-variable", "-Wundefined-internal", "-Wextern-initializer",
-    "-Wmissing-prototypes", "-Wreserved-identifier", "-Wmissing-variable-declarations",
-    "-Wunknown-attributes"
+    "-Wmissing-prototypes", "-Wmissing-variable-declarations", "-Wunknown-attributes"
 )
 
 #if defined(__clang__)

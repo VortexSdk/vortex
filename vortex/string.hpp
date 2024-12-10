@@ -1,10 +1,13 @@
 #pragma once
 
-#include "linux/syscall/syscall.hpp"
 #include "math.hpp"
 #include "mem/mem.hpp"
 #include "metap/metap.hpp"
+#include "metap/structs.hpp"
 #include "numbers.hpp"
+#include "vortex/Array.hpp"
+
+template <typename T> inline static T v [16 / sizeof(T)] = {0};
 
 template <typename T = u8> union StringData {
     static_assert(
@@ -14,31 +17,47 @@ template <typename T = u8> union StringData {
 
     T *ptr;
     // u8 -> 16, u16 -> 8, u32 -> 4
-    T buf [16 / sizeof(T)];
+    Array<T, 16 / sizeof(T)> buf;
+
+    StringData() : ptr(null) {}
+    StringData(T *_ptr) : ptr(_ptr) {}
+    template <usize N> StringData(T (&_buf) [N]) : buf(_buf) {}
 };
 
 template <typename T = u8> struct BasicString {
     static constexpr usize PREFIX_COUNT   = 4 / sizeof(T);
     static constexpr usize STR_DATA_COUNT = 16 / sizeof(T);
 
-    u32 len{0};
-    u32 cap{0};
-    T prefix [PREFIX_COUNT]{0};
-    StringData<T> data{{.buf = {0}}};
+    u32 len;
+    u32 cap;
+    StringData<T> data;
+    Array<T, PREFIX_COUNT> prefix;
 
-    BasicString(const BasicString &t)            = delete;
-    BasicString &operator=(const BasicString &t) = delete;
-    BasicString() : len(0), cap(0), data({.buf = {0}}) {
-        memset(reinterpret_cast<void *>(prefix), 0, static_cast<usize>(sizeof(prefix)));
+    BasicString() : len(0), cap(0), data(StringData<T>()), prefix(Array<T, PREFIX_COUNT>()) {}
+    BasicString(u32 _len, u32 _cap, StringData<T> _data, T _prefix [PREFIX_COUNT])
+        : len(_len), cap(_cap), data(_data), prefix(_prefix) {}
+
+    BasicString(const BasicString &other)            = delete;
+    BasicString &operator=(const BasicString &other) = delete;
+
+    BasicString(BasicString &&other) noexcept
+        : len(exchange(other.len, 0_u32)), cap(exchange(other.cap, 0_u32)),
+          prefix(move(other.prefix)) {
+        if (cap > STR_DATA_COUNT) data.ptr = other.data.ptr;
+        else data.buf = move(other.data.buf);
+        data.ptr = null;
     }
-    BasicString(BasicString &&s) noexcept
-        : len(exchange(s.len, 0_u32)), cap(exchange(s.cap, 0_u32)),
-          data(exchange(s.data, StringData<T>{.buf = {}})) {
-        memcpy(
-            reinterpret_cast<void *>(prefix), reinterpret_cast<const void *>(s.prefix),
-            static_cast<usize>(sizeof(prefix))
-        );
-        memset(reinterpret_cast<void *>(s.prefix), 0, static_cast<usize>(sizeof(s.prefix)));
+    BasicString &operator=(BasicString &&other) noexcept {
+        if (this != &other) [[likely]] {
+            len    = exchange(other.len, 0_u32);
+            cap    = exchange(other.cap, 0_u32);
+            prefix = move(other.prefix);
+
+            if (cap > STR_DATA_COUNT) data.ptr = other.data.ptr;
+            else data.buf = move(other.data.buf);
+            data.ptr = null;
+        }
+        return *this;
     }
 
     template <AllocatorStrategy U>
@@ -48,10 +67,10 @@ template <typename T = u8> struct BasicString {
         if (capacity > STR_DATA_COUNT) {
             const auto alloc_res = a->template alloc<T>(capacity);
             if (alloc_res.is_empty()) return SysRes<BasicString<T>>::from_err(SysResKind::NOMEM);
-            s.data = StringData{.ptr = alloc_res.ptr};
+            s.data.ptr = alloc_res.ptr;
         }
 
-        return SysRes<BasicString<T>>::from_successful(move(s));
+        return move(s);
     }
 
     template <AllocatorStrategy U> void deinit(this BasicString<T> &self, Allocator<U> *a) {
@@ -77,7 +96,7 @@ template <typename T = u8> struct BasicString {
         }
         s.len = slice->len;
 
-        return SysRes<BasicString<T>>::from_successful(move(s));
+        return move(s);
     }
 
     template <AllocatorStrategy U>
@@ -99,7 +118,7 @@ template <typename T = u8> struct BasicString {
         }
         s.len = self.len;
 
-        return SysRes<BasicString<T>>::from_successful(move(s));
+        return move(s);
     }
 
     Slice<T> as_mut_slice(this BasicString<T> &self) {
@@ -191,7 +210,7 @@ template <typename T = u8> struct BasicString {
 
     T *nth(this const BasicString<T> &self, usize n) {
         if (n >= self.len) [[unlikely]]
-            return null<T>();
+            return null;
 
         if (n < STR_DATA_COUNT) return &self.prefix [n];
         return &self.data.ptr [n];

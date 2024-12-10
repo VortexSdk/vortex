@@ -4,6 +4,7 @@
 
 namespace vortex {
 
+#include "Array.hpp"
 #include "Cloneable.hpp"
 #include "debug.hpp"
 #include "linux/io_uring.hpp"
@@ -15,6 +16,7 @@ namespace vortex {
 #include "net/socket.hpp"
 #include "string.hpp"
 #include "Vec.hpp"
+#include "writer.hpp"
 
 } // namespace vortex
 

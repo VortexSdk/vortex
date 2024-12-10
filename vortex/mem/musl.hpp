@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "../diagnostics.hpp"
+#include "../metap/diagnostics.hpp"
 #include "../numbers.hpp"
 
 // NOLINTBEGIN

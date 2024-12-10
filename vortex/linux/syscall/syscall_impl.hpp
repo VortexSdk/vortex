@@ -1,10 +1,7 @@
 #pragma once
 
-#include "../../diagnostics.hpp"
-#include "../../mem/utils.hpp"
-#include "../../metap/metap.hpp"
+#include "../../metap/diagnostics.hpp"
 #include "../../numbers.hpp"
-#include "../../panic.hpp"
 #include "SysRes.hpp"
 
 // #define IS_ARM defined(__aarch64__) || defined(__ARM_ARCH_ISA_A64)

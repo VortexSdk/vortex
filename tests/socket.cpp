@@ -29,11 +29,8 @@ static u8 run_server(void *) {
         return vortex::SysRes<vortex::None>::from_successful(vortex::None());
     }();
     if (res.is_err()) {
-        auto *buffer = ZEROED_ARR(char, 1024);
-        auto c       = vortex::ltos(static_cast<i64>(res.kind), buffer, 1024);
-        buffer [c]   = '\n';
-        vortex::syscall(__NR_write, 0, buffer, static_cast<usize>(c + 1));
-        vortex::assert(false, "Failed to run server!");
+        vortex::println("Server error: ", static_cast<u8>(res.kind));
+        vortex::assert(false, "Failed to run the server!");
     }
 
     return 0;
@@ -44,14 +41,13 @@ static vortex::SysRes<u8> main_w() {
     auto thread = TRY(vortex::Thread::init(run_server), u8);
 
     auto ts     = vortex::timespec{.tv_sec = 1, .tv_nsec = 0};
-    vortex::nanosleep(&ts, vortex::null<vortex::timespec>());
+    vortex::nanosleep(&ts, vortex::null);
 
     auto conf = vortex::SocketConfig{};
     conf.addr = "127.0.0.1";
     auto c    = TRY(vortex::Socket::init_client(&r, conf), u8);
 
     TRY(c.send(&r, TEST_MSG, vortex::strlen(TEST_MSG)), u8);
-    vortex::nanosleep(&ts, vortex::null<vortex::timespec>());
 
     c.deinit(&r);
     TRY(thread.join(), u8);
@@ -64,11 +60,8 @@ static vortex::SysRes<u8> main_w() {
 static u8 main() {
     auto res = main_w();
     if (res.is_err()) {
-        auto *buffer = ZEROED_ARR(char, 1024);
-        auto c       = vortex::ltos(static_cast<i64>(res.kind), buffer, 1024);
-        buffer [c]   = '\n';
-        vortex::syscall(__NR_write, 0, buffer, static_cast<usize>(c + 1));
-        vortex::assert(false, "Failed to run server!");
+        vortex::println("Cliend error: ", static_cast<u8>(res.kind));
+        vortex::assert(false, "Failed to run the client!");
     }
 
     return res.unwrap();

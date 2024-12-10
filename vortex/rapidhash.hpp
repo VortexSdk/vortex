@@ -1,7 +1,6 @@
 #pragma once
 
-#include "diagnostics.hpp"
-#include "mem/utils.hpp"
+#include "metap/diagnostics.hpp"
 #include "numbers.hpp"
 
 #if defined(_MSC_VER)

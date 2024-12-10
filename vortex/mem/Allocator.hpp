@@ -1,37 +1,23 @@
 #pragma once
 
 #include "../metap/metap.hpp"
+#include "../metap/structs.hpp"
 #include "../numbers.hpp"
 #include "utils.hpp"
 
 struct AllocatorState {
-    usize len{0};
-    usize pos{0};
-    u8 *ptr{null<u8>()};
-
-    AllocatorState() = default;
-    AllocatorState(usize _len, usize _pos, u8 *_ptr) : len(_len), pos(_pos), ptr(_ptr) {}
-    AllocatorState(AllocatorState &&as) noexcept
-        : len(exchange(as.len, 0_usize)), pos(exchange(as.pos, 0_usize)),
-          ptr(exchange(as.ptr, null<u8>())) {}
+    PIN_STRUCT(AllocatorState, len, 0_usize, pos, 0_usize, ptr, reinterpret_cast<u8 *>(0))
 };
 
 template <typename T>
 concept AllocatorStrategy = requires(T t) {
-    { t.free(null<AllocatorState>(), NULL, 0_usize, 0_usize) } -> same_as<void>;
-    { t.alloc(null<AllocatorState>(), 0_usize, 0_usize) } -> same_as<void *>;
-    { t.resize(null<AllocatorState>(), NULL, 0_usize, 0_usize, 0_usize) } -> same_as<void *>;
+    { t.free(null, null, 0_usize, 0_usize) } -> same_as<void>;
+    { t.alloc(null, 0_usize, 0_usize) } -> same_as<void *>;
+    { t.resize(null, null, 0_usize, 0_usize, 0_usize) } -> same_as<void *>;
 };
 
 template <AllocatorStrategy T> struct Allocator {
-    T strategy{};
-    AllocatorState state{};
-
-    Allocator(const Allocator &t)            = delete;
-    Allocator &operator=(const Allocator &t) = delete;
-    Allocator(Allocator &&a) noexcept : strategy(move(a.strategy)), state(move(a.state)) {}
-    Allocator(T _strategy, AllocatorState _state)
-        : strategy(move(_strategy)), state(move(_state)) {}
+    PIN_STRUCT(Allocator, strategy, T(), state, (AllocatorState()))
 
     static Allocator<T> init(usize len, u8 *ptr, usize pos = 0) {
         return Allocator<T>(T{}, AllocatorState(len, pos, ptr));
