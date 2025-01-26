@@ -20,7 +20,7 @@ struct Arena {
         const usize aligned_pos = (a->pos + (alignment - 1)) & ~(alignment - 1);
         const usize new_pos     = aligned_pos + s;
         if (new_pos >= a->len) [[unlikely]] {
-            return NULL;
+            return null;
         }
 
         a->pos = new_pos;
@@ -42,7 +42,11 @@ struct Arena {
             }
         }
 
-        return NULL;
+        return null;
+    }
+
+    void reset(AllocatorState *a) {
+        a->pos = 0;
     }
 
     void free(AllocatorState *, void *, usize, usize) {}

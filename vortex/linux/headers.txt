@@ -63,4 +63,7 @@ fcntl.h
 ipc.h
 ipcbuf.h
 libc-compat.h
+signalfd.h
+sockios.h
+inotify.h
 

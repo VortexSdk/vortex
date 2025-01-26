@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../../metap/diagnostics.hpp"
-#include "../../metap/metap.hpp"
 #include "../../numbers.hpp"
 
 DIAG_IGNORE_CLANG_PUSH("-Weverything")
@@ -9,6 +8,7 @@ DIAG_IGNORE_GCC_PUSH("-Wall", "-Wextra")
 
 #include <asm-generic/poll.h>
 #include <asm-generic/siginfo.h>
+#include <asm-generic/socket.h>
 #include <asm/signal.h>
 #include <asm/stat.h>
 #include <asm/statfs.h>
@@ -19,6 +19,7 @@ DIAG_IGNORE_GCC_PUSH("-Wall", "-Wextra")
 #include <linux/fs.h>
 #include <linux/futex.h>
 #include <linux/in.h>
+#include <linux/inotify.h>
 #include <linux/io_uring.h>
 #include <linux/kexec.h>
 #include <linux/landlock.h>
@@ -28,12 +29,15 @@ DIAG_IGNORE_GCC_PUSH("-Wall", "-Wextra")
 #include <linux/msg.h>
 #include <linux/openat2.h>
 #include <linux/perf_event.h>
+#include <linux/posix_types.h>
 #include <linux/resource.h>
 #include <linux/rseq.h>
 #include <linux/sched.h>
 #include <linux/sched/types.h>
 #include <linux/sem.h>
 #include <linux/shm.h>
+#include <linux/signal.h>
+#include <linux/signalfd.h>
 #include <linux/socket.h>
 #include <linux/stat.h>
 #include <linux/sysinfo.h>
@@ -44,13 +48,46 @@ DIAG_IGNORE_GCC_PUSH("-Wall", "-Wextra")
 #include <linux/uio.h>
 #include <linux/utime.h>
 #include <linux/utsname.h>
-//
-#include <linux/posix_types.h>
 
-using FdI          = int;
-using FdL          = long;
-using FdU          = unsigned int;
-using FdUL         = unsigned long;
+#define INVALID_FD 4294967295_u32
+
+struct Fd {
+    unsigned int d;
+
+    Fd() {
+        d = INVALID_FD;
+    }
+    Fd(int _d) {
+        d = static_cast<int>(_d);
+    }
+    Fd(long _d) {
+        d = static_cast<int>(_d);
+    }
+    __attribute__((no_sanitize("implicit-integer-sign-change", "unsigned-integer-overflow")))
+    Fd(unsigned int _d) {
+        d = static_cast<int>(_d);
+    }
+    __attribute__((no_sanitize("implicit-integer-sign-change", "unsigned-integer-overflow")))
+    Fd(unsigned long _d) {
+        d = static_cast<int>(_d);
+    }
+
+    operator int() {
+        return static_cast<int>(d);
+    }
+    __attribute__((no_sanitize("implicit-integer-sign-change", "unsigned-integer-overflow"))
+    ) operator unsigned int() {
+        return static_cast<unsigned int>(d);
+    }
+    operator long() {
+        return static_cast<long>(d);
+    }
+    __attribute__((no_sanitize("implicit-integer-sign-change", "unsigned-integer-overflow"))
+    ) operator unsigned long() {
+        return static_cast<unsigned long>(d);
+    }
+};
+
 using fd_set       = __kernel_fd_set;
 using off_t        = __kernel_off_t;
 using loff_t       = __kernel_loff_t;
@@ -71,44 +108,94 @@ using id_t         = u32;
 using rwf_t        = __kernel_rwf_t;
 using sockaddr     = __kernel_sockaddr_storage;
 
-typedef struct msghdr msghdr;
-typedef struct statx statx_t;
+#define S_IFDIR        0040000
+#define S_IFCHR        0020000
+#define S_IFBLK        0060000
+#define S_IFREG        0100000
+#define S_IFIFO        0010000
+#define S_IFLNK        0120000
+#define S_IFSOCK       0140000
+#define S_IFMT         0170000
 
-template <typename From, typename To> To fd_cast(From value) {
-    static_assert(
-        is_same<From, FdI>::value || is_same<From, FdU>::value || is_same<From, FdL>::value ||
-            is_same<From, FdUL>::value || is_same<To, FdI>::value || is_same<To, FdU>::value ||
-            is_same<To, FdL>::value || is_same<To, FdUL>::value,
-        "Invalid fd cast!"
-    );
+#define S_ISDIR(mode)  (((mode) & S_IFMT) == S_IFDIR)
+#define S_ISCHR(mode)  (((mode) & S_IFMT) == S_IFCHR)
+#define S_ISBLK(mode)  (((mode) & S_IFMT) == S_IFBLK)
+#define S_ISREG(mode)  (((mode) & S_IFMT) == S_IFREG)
+#define S_ISFIFO(mode) (((mode) & S_IFMT) == S_IFIFO)
+#define S_ISLNK(mode)  (((mode) & S_IFMT) == S_IFLNK)
+#define S_ISSOCK(mode) (((mode) & S_IFMT) == S_IFSOCK)
 
-#ifndef __OPTIMIZE__
-    if constexpr (!is_unsigned<From>::value && is_unsigned<To>::value) {
-        assert(value >= 0, "Negative value cannot be converted to unsigned type!");
-    }
+#define S_IRWXU        00700
+#define S_IRUSR        00400
+#define S_IWUSR        00200
+#define S_IXUSR        00100
+
+#define S_IRWXG        00070
+#define S_IRGRP        00040
+#define S_IWGRP        00020
+#define S_IXGRP        00010
+
+#define S_IRWXO        00007
+#define S_IROTH        00004
+#define S_IWOTH        00002
+#define S_IXOTH        00001
+
+/* dirent types */
+#define DT_UNKNOWN     0x0
+#define DT_FIFO        0x1
+#define DT_CHR         0x2
+#define DT_DIR         0x4
+#define DT_BLK         0x6
+#define DT_REG         0x8
+#define DT_LNK         0xa
+#define DT_SOCK        0xc
+
+/* commonly an fd_set represents 256 FDs */
+#ifndef FD_SETSIZE
+#define FD_SETSIZE 256
 #endif
 
-    return static_cast<To>(value);
-}
+/* PATH_MAX and MAXPATHLEN are often used and found with plenty of different
+ * values.
+ */
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
 
-typedef struct {
+#ifndef MAXPATHLEN
+#define MAXPATHLEN (PATH_MAX)
+#endif
+
+/* flags for mmap */
+#ifndef MAP_FAILED
+#define MAP_FAILED ((void *)-1)
+#endif
+
+/* whence values for lseek() */
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
+
+using statx_t      = struct statx;
+
+using __aio_sigset = struct {
     const sigset_t *sigmask;
     usize sigsetsize;
-} __aio_sigset;
-typedef struct {
+};
+using sched_param = struct {
     int sched_priority;
-} sched_param;
-typedef struct {
+};
+using getcpu_cache = struct {
     unsigned long blob [128 / sizeof(long)];
-} getcpu_cache;
-typedef struct {
+};
+using linux_dirent64 = struct {
     u64 d_ino;
     i64 d_off;
     unsigned short d_reclen;
     unsigned char d_type;
     char d_name [];
-} linux_dirent64;
-typedef struct {
+};
+using user_msghdr = struct {
     /// ptr to socket address structure
     void *msg_name;
     /// size of socket address structure
@@ -123,16 +210,18 @@ typedef struct {
     __kernel_size_t msg_controllen;
     /// flags on received message
     unsigned int msg_flags;
-} user_msghdr;
-typedef struct {
+};
+using mmsghdr = struct {
     user_msghdr msg_hdr;
     unsigned int msg_len;
-} mmsghdr;
-typedef struct {
+};
+using file_handle = struct {
     u32 handle_bytes;
     int handle_type;
     /// file identifier
     unsigned char f_handle [] __counted_by(handle_bytes);
-} file_handle;
+};
+
+using msghdr = user_msghdr;
 
 DIAG_IGNORE_POP

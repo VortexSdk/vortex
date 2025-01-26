@@ -7,7 +7,7 @@
 #define PAGE_SIZE 4096
 struct nullptr_t {
     template <typename T> constexpr operator T *() const noexcept {
-        return 0;
+        return (T *)0;
     }
     template <typename T> constexpr operator T() const = delete;
 
@@ -33,7 +33,7 @@ template <typename T> static inline T zeroed() {
 #define __ZEROED_ARR_INNER(t, c, arr)                                                              \
     ({                                                                                             \
         t arr [c];                                                                                 \
-        ::vortex::memset(reinterpret_cast<char *>(&arr), 0, sizeof(t) * c);                        \
+        VORTEX_NS(memset(reinterpret_cast<char *>(&arr), 0, sizeof(t) * c));                       \
         arr;                                                                                       \
     })
 #define ZEROED_ARR(t, c) __ZEROED_ARR_INNER(t, c, UNIQUE_NAME(arr))

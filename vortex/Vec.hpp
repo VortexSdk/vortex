@@ -1,9 +1,11 @@
 #pragma once
 
-#include "mem/mem.hpp"
+#include "linux/syscall/SysRes.hpp"
+#include "math.hpp"
+#include "mem/Allocator.hpp"
 #include "metap/metap.hpp"
+#include "metap/structs.hpp"
 #include "numbers.hpp"
-#include "vortex/metap/structs.hpp"
 
 template <typename T> struct Vec {
     PIN_STRUCT(Vec, len, 0_u32, cap, 0_u32, ptr, reinterpret_cast<T *>(0))
@@ -12,7 +14,7 @@ template <typename T> struct Vec {
         Vec<T> v;
         v.cap                    = capacity;
         const Slice<T> alloc_res = a->template alloc<T>(capacity);
-        if (alloc_res.is_empty()) return SysRes<Vec<T>>::from_err(SysResKind::NOMEM);
+        if (alloc_res.is_empty()) return SysResKind::NOMEM;
         v.ptr = alloc_res.ptr;
 
         return move(v);
@@ -72,7 +74,7 @@ template <typename T> struct Vec {
     bool append(this Vec<T> &self, Allocator<U> *a, const Slice<const T> *const slice) {
         const usize required_cap = self.len + slice->len;
         if (required_cap > self.cap) {
-            const usize new_cap = max(required_cap, self.cap * 2);
+            const usize new_cap = max(required_cap, static_cast<usize>(self.cap * 2));
             if (self.grow(a, new_cap)) return true;
         }
 

@@ -1,6 +1,7 @@
 #pragma once
 
-#include "mem/utils.hpp"
+#include "mem/musl.hpp"
+#include "mem/Slice.hpp"
 #include "numbers.hpp"
 
 template <typename T, usize c> struct Array {
@@ -16,7 +17,7 @@ template <typename T, usize c> struct Array {
 
     Array(Array &&s) noexcept {
         const usize bytes = sizeof(T) * c;
-        auto s_data       = reinterpret_cast<void *>(s.data);
+        auto *s_data      = reinterpret_cast<void *>(s.data);
 
         memcpy(reinterpret_cast<void *>(data), s_data, bytes);
         memset(s_data, 0, bytes);
@@ -24,7 +25,7 @@ template <typename T, usize c> struct Array {
     Array &operator=(Array &&other) noexcept {
         if (this != &other) [[likely]] {
             const usize bytes = sizeof(T) * c;
-            auto o_data       = reinterpret_cast<void *>(other.data);
+            auto *o_data      = reinterpret_cast<void *>(other.data);
 
             memcpy(reinterpret_cast<void *>(data), o_data, bytes);
             memset(o_data, 0, bytes);

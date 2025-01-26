@@ -1,7 +1,6 @@
 #pragma once
 
 #include "diagnostics.hpp"
-#include "metap.hpp"
 
 #define _FIELD_INIT(field, value)                       field(value)
 #define _FIELD_COPY(field, unused)                      field(other.field)

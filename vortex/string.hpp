@@ -1,11 +1,11 @@
 #pragma once
 
+#include "Array.hpp"
+#include "linux/syscall/SysRes.hpp"
 #include "math.hpp"
-#include "mem/mem.hpp"
+#include "mem/Allocator.hpp"
 #include "metap/metap.hpp"
-#include "metap/structs.hpp"
 #include "numbers.hpp"
-#include "vortex/Array.hpp"
 
 template <typename T> inline static T v [16 / sizeof(T)] = {0};
 
@@ -66,7 +66,7 @@ template <typename T = u8> struct BasicString {
         s.cap = capacity;
         if (capacity > STR_DATA_COUNT) {
             const Slice<T> alloc_res = a->template alloc<T>(capacity);
-            if (alloc_res.is_empty()) return SysRes<BasicString<T>>::from_err(SysResKind::NOMEM);
+            if (alloc_res.is_empty()) return SysResKind::NOMEM;
             s.data.ptr = alloc_res.ptr;
         }
 
@@ -172,7 +172,7 @@ template <typename T = u8> struct BasicString {
     bool append(this BasicString<T> &self, Allocator<U> *a, const Slice<const T> *const slice) {
         const usize required_cap = self.len + slice->len;
         if (required_cap > self.cap) {
-            const usize new_cap = max(required_cap, self.cap * 2);
+            const usize new_cap = max(required_cap, static_cast<usize>(self.cap * 2));
             if (self.grow(a, new_cap)) return true;
         }
 
@@ -196,7 +196,7 @@ template <typename T = u8> struct BasicString {
     SysRes<BasicString<T>>
     substr(this const BasicString<T> &self, Allocator<U> *a, usize start, usize sublen) {
         if (start >= self.len || start + sublen > self.len) [[unlikely]]
-            return SysRes<BasicString<T>>::from_err(SysResKind::INVAL);
+            return SysResKind::INVAL;
 
         Slice<const T> slice = self.as_slice();
         return BasicString<T>::from(a, &Slice<const T>::init(sublen, &slice.ptr [start]));

@@ -112,7 +112,7 @@ constexpr f64 operator""_f64(long double n) {
 #define I32_MAX   (2147483647_i32)
 #define U32_MAX   (4294967295_u32)
 #define I64_MIN   (-9223372036854775808_i64)
-#define I64_MAX   9223372036854775807_i64
+#define I64_MAX   (9223372036854775807_i64)
 #define U64_MAX   (18446744073709551615_u64)
 #define ISIZE_MIN I64_MIN
 #define ISIZE_MAX I64_MAX

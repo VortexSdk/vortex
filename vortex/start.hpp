@@ -1,6 +1,6 @@
 #pragma once
 
-#ifndef NO_START
+#ifndef VORTEX_NO_START
 
 #include <vortex/vortex.hpp>
 
@@ -16,15 +16,15 @@ extern "C" void *__dso_handle = reinterpret_cast<void *>(0);
 
 #ifdef USE_AUX
 static u8
-main(vortex::Slice<char *>, vortex::Slice<char *>, void *); // NOLINT(clang-diagnostic-undefined-internal)
-#elif NO_ENV
-static
-) u8 main(vortex::Slice<char *>); // NOLINT(clang-diagnostic-undefined-internal)
-#elif NO_ARGS
+main(VORTEX_NS(Slice<char *>), VORTEX_NS(Slice<char *>), void *); // NOLINT(clang-diagnostic-undefined-internal)
+#elif VORTEX_NO_ENV
+static u8 main(VORTEX_NS(Slice<char *>)); // NOLINT(clang-diagnostic-undefined-internal)
+#elif VORTEX_NO_ARGS
 static u8 main(); // NOLINT(clang-diagnostic-undefined-internal)
 #else
-static u8
-    main(vortex::Slice<char *>, vortex::Slice<char *>); // NOLINT(clang-diagnostic-undefined-internal)
+static u8 main(
+    VORTEX_NS(Slice<char *>), VORTEX_NS(Slice<char *>)
+); // NOLINT(clang-diagnostic-undefined-internal)
 #endif
 
 extern "C" __attribute__((noreturn, noinline, noipa)) void start_c(void *s) {
@@ -37,7 +37,7 @@ extern "C" __attribute__((noreturn, noinline, noipa)) void start_c(void *s) {
     auto *args            = reinterpret_cast<char **>(args_addr);
     auto *vars            = reinterpret_cast<char **>(vars_addr);
 
-    while (vars [vars_len] != nullptr) vars_len++;
+    while (vars [vars_len] != VORTEX_NS(null)) vars_len++;
 
     // NOLINTBEGIN(clang-analyzer-deadcode.DeadStores)
     auto *auxv = reinterpret_cast<void *>(vars_addr + 8 + (vars_len * 8));
@@ -45,17 +45,17 @@ extern "C" __attribute__((noreturn, noinline, noipa)) void start_c(void *s) {
 
 #ifdef USE_AUX
     u8 const ret =
-        main(vortex::Slice<char *>(args_len, args), vortex::Slice<char *>(vars_len, vars)) auxv);
-#elif NO_ENV
-    u8 const ret = main(vortex::Slice<char *>(args_len, args));
-#elif NO_ARGS
+        main(VORTEX_NS(Slice<char *>(args_len, args)), VORTEX_NS(Slice<char *>(vars_len, vars))) auxv);
+#elif VORTEX_NO_ENV
+    u8 const ret = main(VORTEX_NS(Slice<char *>(args_len, args)));
+#elif VORTEX_NO_ARGS
     u8 const ret = main();
 #else
     u8 const ret =
-        main(vortex::Slice<char *>(args_len, args), vortex::Slice<char *>(vars_len, vars));
+        main(VORTEX_NS(Slice<char *>(args_len, args)), VORTEX_NS(Slice<char *>(vars_len, vars)));
 #endif
 
-    vortex::syscall(__NR_exit, static_cast<usize>(ret));
+    VORTEX_NS(syscall(__NR_exit_group, static_cast<usize>(ret)));
 
     __builtin_unreachable();
 }

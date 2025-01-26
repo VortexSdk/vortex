@@ -10,9 +10,9 @@ readonly INCLUDES=("-I." "-Ibuild/uapi")
 readonly OUTPUT="$BUILD_DIR/$PROJECT_NAME"
 readonly TEST_FILES=$(find tests/ -type f -name "*.cpp")
 readonly ALL_FILES=$(find . -type f -name "*.*pp" | grep -v "build")
-BUILD_FLAGS=("-ffreestanding" "-fno-builtin" "-nodefaultlibs" "-nostdlib" "-nostdlib++" "-nostdinc" "-nostdinc++" "-std=c++23" "-Werror" "-fno-exceptions" "-Wno-c++98-compat" "-Wno-c++98-compat-pedantic" "-Wno-c++20-extensions" "-Wno-padded" "-Wno-reserved-identifier" "-Wno-reserved-macro-identifier" "-Wno-unsafe-buffer-usage" "-Wno-unused-function" "-Wno-gnu-anonymous-struct" "-Wno-nested-anon-types" "-Wno-vla-cxx-extension" "-Wno-zero-length-array" "-Wno-gnu-variable-sized-type-not-at-end" "-Wno-gnu-array-member-paren-init" "-Wno-gnu-statement-expression-from-macro-expansion" "-Wno-gnu-statement-expression" "-Wno-old-style-cast" "-Wno-switch-default" "-Wno-flexible-array-extensions" "-Wno-unused-template" "-Wno-zero-as-null-pointer-constant" "-fno-signed-char" "-fno-use-cxa-atexit" "-fdata-sections" "-ffunction-sections" "-Wl,--gc-sections")
+BUILD_FLAGS=("-ffreestanding" "-fno-builtin" "-nodefaultlibs" "-nostdlib" "-nostdlib++" "-nostdinc" "-nostdinc++" "-std=c++23" "-Werror" "-fno-exceptions" "-Wno-c++98-compat" "-Wno-c++98-compat-pedantic" "-Wno-c++20-extensions" "-Wno-padded" "-Wno-reserved-identifier" "-Wno-reserved-macro-identifier" "-Wno-unsafe-buffer-usage" "-Wno-unused-function" "-Wno-gnu-anonymous-struct" "-Wno-nested-anon-types" "-Wno-vla-cxx-extension" "-Wno-zero-length-array" "-Wno-gnu-variable-sized-type-not-at-end" "-Wno-gnu-array-member-paren-init" "-Wno-gnu-statement-expression-from-macro-expansion" "-Wno-gnu-statement-expression" "-Wno-old-style-cast" "-Wno-switch-default" "-Wno-flexible-array-extensions" "-Wno-unused-template" "-Wno-global-constructors" "-Wno-zero-as-null-pointer-constant" "-Wno-atomic-implicit-seq-cst" "-fno-signed-char" "-fno-use-cxa-atexit" "-fdata-sections" "-ffunction-sections" "-Wl,--gc-sections")
 
-readonly GCC_EXTRA_BUILD_FLAGS=("-Wall" "-Wextra" "-nostartfiles" "-fno-stack-protector")
+readonly GCC_EXTRA_BUILD_FLAGS=("-Wall" "-Wextra" "-nostartfiles" "-fno-stack-protector" "-Wno-attributes")
 readonly CLANG_EXTRA_BUILD_FLAGS=("-Weverything" "-nostdlibinc" "-fno-knr-functions")
 readonly GCC_SANITIZER_FLAG=("-fsanitize=undefined,float-divide-by-zero,signed-integer-overflow")
 readonly CLANG_SANITIZER_FLAG=("-fsanitize=undefined,nullability,float-divide-by-zero,unsigned-integer-overflow,implicit-conversion,local-bounds")
@@ -87,7 +87,7 @@ build_and_run_tests() {
             build_flags+=("-Oz" "-flto" "-fno-rtti" "-static")
             ;;
         "")
-            build_flags+=("-O0" "-g" "-lubsan" "-lc" "-lgcc_s" "-lstdc++") # Default to debug
+            build_flags+=("-O0" "-g3" "-lubsan" "-lc" "-lgcc_s" "-lstdc++") # Default to debug
 
             if [ $COMPILER == "clang" ];then
                 build_flags+=("${CLANG_SANITIZER_FLAG[@]}")
@@ -156,6 +156,8 @@ build_command_db() {
         base_name=$(basename "$filename")
         exec_n_print "$COMPILER" -MJ "$BUILD_DIR/commands_db/$base_name.o.json" -o "$BUILD_DIR/tmp/$base_name.pch" "$filename" "${build_flags[@]}" "${INCLUDES[@]}"
     done
+
+    exec_n_print "$COMPILER" vortex/linux/syscall/wrapperGenerator.cpp -MJ "$BUILD_DIR/commands_db/wrapperGenerator.cpp.o.json" -o "$BUILD_DIR/tmp/wrapperGenerator.cpp.pch" -lstdc++ -std=c++23
 
     # Create the final compile_commands.json.
     sed -e '1s/^/[\'$'\n''/' -e '$s/,$/\'$'\n'']/' "$BUILD_DIR/commands_db/"*.o.json > compile_commands.json

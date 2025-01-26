@@ -1,3 +1,4 @@
+#include <bits/stdc++.h>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -9,7 +10,7 @@
 #include <vector>
 
 // Helper function to replace the last occurrence of a substring
-std::string
+static std::string
 replaceLast(const std::string& str, const std::string& what, const std::string& replacement) {
     std::size_t pos = str.rfind(what);
     if (pos == std::string::npos) return str;
@@ -30,7 +31,7 @@ struct Definition {
 };
 
 // Function to parse function definitions from the data
-std::vector<Definition> parseDefinitions(const std::string& data) {
+static std::vector<Definition> parseDefinitions(const std::string& data) {
     std::vector<Definition> definitions;
     std::istringstream stream(data);
     std::string line;
@@ -82,24 +83,25 @@ std::vector<Definition> parseDefinitions(const std::string& data) {
     return definitions;
 }
 
-std::vector<std::string> alphabet = {"a", "b", "c", "d", "e", "f", "g", "h", "i",
-                                     "j", "k", "l", "m", "n", "o", "p", "q", "r",
-                                     "s", "t", "u", "v", "w", "x", "y", "z"};
-std::unordered_map<std::string, std::string> file_descriptor_map = {
-    {"unsigned int",  "FdU" },
-    {"int",           "FdI" },
-    {"unsigned long", "FdUL"},
-    {"long",          "FdL" },
+static std::vector<std::string> alphabet = {"a", "b", "c", "d", "e", "f", "g", "h", "i",
+                                            "j", "k", "l", "m", "n", "o", "p", "q", "r",
+                                            "s", "t", "u", "v", "w", "x", "y", "z"};
+static std::unordered_set<std::string> file_descriptor_set = {
+    {"unsigned int"},
+    {"int"},
+    {"unsigned long"},
+    {"long"},
 };
-std::unordered_map<std::string, std::string> syscall_name_map = {
+static std::unordered_map<std::string, std::string> syscall_name_map = {
     {"newuname",         "uname"          },
     {"statfs64",         "statfs"         },
     {"fstatfs64",        "fstatfs"        },
+    {"signalfd4",        "signalfd"       },
     {"sendfile64",       "sendfile"       },
     {"fadvise64_64",     "fadvise64"      },
     {"sync_file_range2", "sync_file_range"},
 };
-std::unordered_map<std::string, std::string> syscall_arg_type_map = {
+static std::unordered_map<std::string, std::string> syscall_arg_type_map = {
     {"size_t",                      "usize"               },
     {"ssize_t",                     "isize"               },
     {"uint32_t",                    "u32"                 },
@@ -115,7 +117,7 @@ std::unordered_map<std::string, std::string> syscall_arg_type_map = {
     {"struct __kernel_timespec *",  "timespec *"          },
     {"const struct __aio_sigset *", "const __aio_sigset *"},
 };
-std::unordered_map<std::string, std::string> syscall_ret_type_map = {
+static std::unordered_map<std::string, std::string> syscall_ret_type_map = {
     {"mmap",    "u8*"  },
     {"brk",     "u8*"  },
     {"mremap",  "u8*"  },
@@ -136,7 +138,7 @@ std::unordered_map<std::string, std::string> syscall_ret_type_map = {
     {"getpgid", "pid_t"},
     {"getsid",  "pid_t"},
 };
-std::string createSyscallWrapper(const std::vector<Definition>& definitions) {
+static std::string createSyscallWrapper(const std::vector<Definition>& definitions) {
     std::string s = "// Warning: This file is auto generated. Don't edit this file directly!\n\n"
                     "#pragma once\n"
                     "#include \"syscall_impl.hpp\"\n\n"
@@ -161,8 +163,7 @@ std::string createSyscallWrapper(const std::vector<Definition>& definitions) {
 
                 if (a.name == "fd" || a.name == "fdin" || a.name == "fd_in" || a.name == "fdout" ||
                     a.name == "fd_out" || std::regex_search(a.name, std::regex(".*fd"))) {
-                    if (a.name != "nfds" && file_descriptor_map.contains(t))
-                        t = file_descriptor_map [t];
+                    if (a.name != "nfds" && file_descriptor_set.contains(t)) t = "Fd";
                 } else if (a.name == "addr" && t == "unsigned long") t = "void *";
 
                 s += t + " " + name + ",";
@@ -192,7 +193,7 @@ std::string createSyscallWrapper(const std::vector<Definition>& definitions) {
 }
 
 // Function to print definitions and arguments
-void printDefinitions(const std::vector<Definition>& definitions) {
+static void printDefinitions(const std::vector<Definition>& definitions) {
     for (const auto& def : definitions) {
         std::cout << "Function: " << def.name << "\n";
         std::cout << "Full Line: " << def.line << "\n";
@@ -229,7 +230,7 @@ int main() {
     if (std::ofstream outFile{"vortex/linux/syscall/wrapper.hpp"}; outFile) {
         outFile << wrapper; // Write the string to the file
     } else {
-        std::cerr << "Error opening file for writing: wrapper.hpp" << std::endl;
+        std::cerr << "Error opening file for writing: wrapper.hpp" << '\n';
     }
 
     std::system("clang-format -i vortex/linux/syscall/wrapper.hpp");

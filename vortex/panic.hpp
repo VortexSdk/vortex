@@ -1,7 +1,7 @@
 #pragma once
 
-// This functions should not depend on anything as it may be used anywhere (i.e. syscall.hpp).
-static __attribute__((noreturn)) void panic(const char* msg) {
+// This functions should not depend on anything as it may be used anywhere (i.e. syscall_impl.hpp).
+static __attribute__((noreturn, cold)) void panic(const char* msg) {
     unsigned long msg_len = 0;
     for (;; msg_len++)
         if (msg [msg_len] == '\0') break;

@@ -1,7 +1,16 @@
 Index:
   Background: Build
 
+If:
+  PathExclude: vortex/linux/syscall/wrapperGenerator.cpp
 CompileFlags:
   Compiler: clang++
-  Remove: [-W*, -Wgnu-statement-expression-from-macro-expansion]
-  Add: [-I., -Ibuild/uapi, -ffreestanding, -fno-builtin, -nodefaultlibs, -nostdlib, -nostdlib++, -nostdinc, -nostdinc++, -std=c++23, -Werror, -fno-exceptions, -Wno-c++98-compat, -Wno-c++98-compat-pedantic, -Wno-c++20-extensions, -Wno-padded, -Wno-reserved-macro-identifier, -Wno-unsafe-buffer-usage, -Wno-unused-function, -Wno-gnu-anonymous-struct, -Wno-nested-anon-types, -Wno-vla-cxx-extension, -Wno-zero-length-array, -Wno-gnu-variable-sized-type-not-at-end, -Wno-gnu-statement-expression, -Wno-gnu-statement-expression-from-macro-expansion, -Wno-old-style-cast, -Wno-switch-default, -Wno-flexible-array-extensions, -Wno-unused-template, -Wno-zero-as-null-pointer-constant, -fno-signed-char, -fno-use-cxa-atexit, -fdata-sections, -ffunction-sections, -Weverything, -nostdlibinc, -Wno-unused-template, -Wno-unused-function, -Wno-unused-macro]
+  Remove: [-Z-reserved-lib-stdc++]
+  Add: [-I., -Ibuild/uapi, -ffreestanding, -fno-builtin, -nodefaultlibs, -nostdlib, -nostdlib++, -nostdinc, -nostdinc++, -std=c++23, -Werror, -fno-exceptions, -Wno-c++98-compat, -Wno-c++98-compat-pedantic, -Wno-c++20-extensions, -Wno-padded, -Wno-reserved-macro-identifier, -Wno-unsafe-buffer-usage, -Wno-unused-function, -Wno-gnu-anonymous-struct, -Wno-nested-anon-types, -Wno-vla-cxx-extension, -Wno-zero-length-array, -Wno-gnu-variable-sized-type-not-at-end, -Wno-gnu-statement-expression, -Wno-gnu-statement-expression-from-macro-expansion, -Wno-old-style-cast, -Wno-switch-default, -Wno-flexible-array-extensions, -Wno-unused-template, -Wno-zero-as-null-pointer-constant, -fno-signed-char, -fno-use-cxa-atexit, -fdata-sections, -ffunction-sections, -Weverything, -nostdlibinc, -Wno-unused-macros, -Wno-global-constructors, -Wno-reserved-identifier,-Wno-traditional, -D VORTEX_NO_NAMESPACE=true]
+
+---
+
+If: 
+  PathMatch: vortex/linux/syscall/wrapperGenerator.cpp
+CompileFlags:
+  Remove: [-Z-reserved-lib-stdc++]

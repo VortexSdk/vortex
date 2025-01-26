@@ -1,6 +1,6 @@
 #pragma once
 
-#include "linux/syscall/syscall.hpp"
+#include "linux/syscall/wrapper.hpp"
 #include "strings.hpp"
 #include <asm/unistd_64.h>
 

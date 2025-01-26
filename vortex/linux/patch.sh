@@ -2,7 +2,7 @@
 
 # This script should be called from the root directory like `./vortex/linux/patch.sh`.
 
-VERSION="6.12"
+VERSION="6.13"
 CLANG_FORMAT=".clang-format"
 
 mkdir -p build/uapi

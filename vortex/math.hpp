@@ -39,8 +39,15 @@ template <typename T> constexpr T ceilPowerOfTwo(T n) {
     return n + 1;
 }
 
-static usize max(usize a, usize b) {
+template <typename T>
+    requires is_integral_v<T>
+static T max(T a, T b) {
     return (a > b) ? a : b;
+}
+template <typename T>
+    requires is_integral_v<T>
+static T min(T a, T b) {
+    return (a < b) ? a : b;
 }
 
 template <typename T>

@@ -70,13 +70,14 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct N
         for (; idx < end_idx; idx++) {
             const MapEntry<T, Y> *entry = self.entries [idx];
 
-            if (entry->status == MapEntryStatus::Empty) return MapSearchResult{idx, false, false};
+            if (entry->status == MapEntryStatus::Empty)
+                return MapSearchResult{.index = idx, .found = false, .run_me_again = false};
             if (entry->status == MapEntryStatus::Filled && CONFIG.eql_fn(key, *entry->key)) {
-                return MapSearchResult{idx, true, false};
+                return MapSearchResult{.index = idx, .found = true, .run_me_again = false};
             }
         }
 
-        return MapSearchResult{0, false, true};
+        return MapSearchResult{.index = 0, .found = false, .run_me_again = true};
     }
     MapSearchResult find_index(this const CURRENT_MAP &self, const T key) {
         const usize start_idx           = CONFIG.hash_fn(key) & (self.entries.len - 1);
@@ -98,14 +99,14 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct N
     static SysRes<CURRENT_MAP> init_cap_unchecked(Allocator<U> *a, usize capacity) {
         CURRENT_MAP m;
         m.entries = a->template alloc<MapEntry<T, Y>>(capacity);
-        if (m.entries.is_empty()) return SysRes<CURRENT_MAP>::from_err(SysResKind::NOMEM);
+        if (m.entries.is_empty()) return SysResKind::NOMEM;
 
         for (usize i = 0; i < capacity; i++) {
             *m.entries [i] =
                 MapEntry<T, Y>{.key = null, .value = null, .status = MapEntryStatus::Empty};
         }
 
-        return move(m);
+        return m;
     }
     template <AllocatorStrategy U>
     static SysRes<CURRENT_MAP> init(Allocator<U> *a, usize capacity = 128) {
@@ -203,11 +204,11 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct M
         m.ncm                   = move(ncm_res.unwrap());
 
         const Slice<T> keys_res = a->template alloc<T>(capacity);
-        if (keys_res.is_empty()) return SysRes<CURRENT_MAP>::from_err(SysResKind::NOMEM);
+        if (keys_res.is_empty()) return SysResKind::NOMEM;
         m.keys                    = keys_res.ptr;
 
         const Slice<Y> values_res = a->template alloc<Y>(capacity);
-        if (values_res.is_empty()) return SysRes<CURRENT_MAP>::from_err(SysResKind::NOMEM);
+        if (values_res.is_empty()) return SysResKind::NOMEM;
         m.values = values_res.ptr;
 
         return move(m);

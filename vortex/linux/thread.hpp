@@ -6,15 +6,16 @@
 #include "asm-generic/mman.h"
 #include "linux/futex.h"
 #include "linux/sched.h"
-#include "syscall/syscall.hpp"
+#include "syscall/wrapper.hpp"
+#include "vortex/metap/diagnostics.hpp"
 #include "vortex/metap/structs.hpp"
 
 // Process/thread waiting options
-enum : i32 {
-    P_ALL   = 0, // Wait for any child
-    P_PID   = 1, // Wait for specific PID
-    P_PGID  = 2, // Wait for members of process group
-    P_PIDFD = 3  // Wait using pidfd
+enum {
+    P_ALL   = 0_i32, // Wait for any child
+    P_PID   = 1_i32, // Wait for specific PID
+    P_PGID  = 2_i32, // Wait for members of process group
+    P_PIDFD = 3_i32  // Wait using pidfd
 };
 
 // Wait status options
@@ -34,6 +35,7 @@ enum class ThreadState : u8 {
 
 using ThreadFn = u8 (*)(void*);
 
+DIAG_IGNORE_GCC_PUSH("-Wunused-parameter")
 __attribute__((naked, nonnull(1, 3, 4))) static void _raw_clone3(
     // %rdi
     clone_args* cl_args,
@@ -108,6 +110,7 @@ __attribute__((naked, nonnull(1, 3))) static void _raw_clone3_nonjoinable(
         "    ret"
     );
 }
+DIAG_IGNORE_GCC_POP
 
 struct Thread {
     PIN_STRUCT(
@@ -121,20 +124,17 @@ struct Thread {
         u64 clone_flags  = CLONE_SIGHAND | CLONE_VM | CLONE_FILES | CLONE_IO
     ) {
         Thread self;
-        clone_args args = zeroed<clone_args>();
+        auto args       = zeroed<clone_args>();
         args.flags      = clone_flags;
         args.stack_size = self.stack_size = ceilPowerOfTwo<usize>(stack_size);
-        self.stack_mem =
-            TRY(mmap(
-                    null, args.stack_size, PROT_READ | PROT_WRITE,
-                    MAP_PRIVATE | MAP_ANONYMOUS | MAP_GROWSDOWN | MAP_NORESERVE, 0xFFFFFFFFFFFFFFFF,
-                    0
-                ),
-                Thread);
-        args.stack      = reinterpret_cast<usize>(self.stack_mem);
+        self.stack_mem                    = TRY(mmap(
+            null, args.stack_size, PROT_READ | PROT_WRITE,
+            MAP_PRIVATE | MAP_ANONYMOUS | MAP_GROWSDOWN | MAP_NORESERVE, 0xFFFFFFFFFFFFFFFF, 0
+        ));
+        args.stack                        = reinterpret_cast<usize>(self.stack_mem);
 
-        void* stack_top = reinterpret_cast<void*>(args.stack + args.stack_size);
-        u32* sp         = (u32*)stack_top;
+        void* stack_top                   = reinterpret_cast<void*>(args.stack + args.stack_size);
+        u32* sp                           = (u32*)stack_top;
         u32* join_futex = self.join_futex = (--sp);
         *join_futex                       = 0;
 
@@ -148,8 +148,8 @@ struct Thread {
             reinterpret_cast<void*>(self.join_futex), 0UL, 1UL, FUTEX2_SIZE_U32, null, 0
         );
         // -EAGAIN = Thread has already finished executing.
-        if (res.is_ok() || res.kind == SysResKind::AGAIN) return None();
-        else return res.err_or_none();
+        if (res.kind == SysResKind::SUCCESS || res.kind == SysResKind::AGAIN) return None();
+        return res.err_or_none();
     }
 
     void deinit(this Thread& self) {
@@ -165,17 +165,14 @@ struct NonJoinableThread {
         u64 clone_flags = CLONE_SIGHAND | CLONE_VM | CLONE_FILES | CLONE_IO
     ) {
         NonJoinableThread self;
-        clone_args args = zeroed<clone_args>();
+        auto args       = zeroed<clone_args>();
         args.flags      = clone_flags;
         args.stack_size = self.stack_size = ceilPowerOfTwo<usize>(stack_size);
-        self.stack_mem =
-            TRY(mmap(
-                    null, args.stack_size, PROT_READ | PROT_WRITE,
-                    MAP_PRIVATE | MAP_ANONYMOUS | MAP_GROWSDOWN | MAP_NORESERVE, 0xFFFFFFFFFFFFFFFF,
-                    0
-                ),
-                NonJoinableThread);
-        args.stack = reinterpret_cast<usize>(self.stack_mem);
+        self.stack_mem                    = TRY(mmap(
+            null, args.stack_size, PROT_READ | PROT_WRITE,
+            MAP_PRIVATE | MAP_ANONYMOUS | MAP_GROWSDOWN | MAP_NORESERVE, 0xFFFFFFFFFFFFFFFF, 0
+        ));
+        args.stack                        = reinterpret_cast<usize>(self.stack_mem);
 
         _raw_clone3_nonjoinable(&args, sizeof(clone_args), func, null, arg);
 

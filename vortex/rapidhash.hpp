@@ -1,5 +1,6 @@
 #pragma once
 
+#include "mem/musl.hpp"
 #include "metap/diagnostics.hpp"
 #include "numbers.hpp"
 

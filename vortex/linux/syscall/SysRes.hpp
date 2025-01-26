@@ -3,11 +3,12 @@
 #include "../../mem/utils.hpp"
 #include "../../metap/diagnostics.hpp"
 #include "../../metap/metap.hpp"
+#include "../../ns.hpp"
 #include "../../numbers.hpp"
 #include "../../panic.hpp"
-#include "vortex/metap/structs.hpp"
 
-DIAG_IGNORE_PUSH("-Weverything")
+DIAG_IGNORE_GCC_PUSH("-Wall")
+DIAG_IGNORE_CLANG_PUSH("-Weverything")
 #include <linux/io_uring.h>
 DIAG_IGNORE_POP
 
@@ -68,7 +69,7 @@ enum class SysResKind : u8 {
     NOTTY                 = 25,
     /// Text file busy
     TXTBSY                = 26,
-    /// File too large
+    /// File too large./build/challenge
     FBIG                  = 27,
     /// No space left on device
     NOSPC                 = 28,
@@ -323,31 +324,61 @@ enum class SysResKind : u8 {
     NSRCNAMELOOP          = 177,
 };
 
-struct CqeRes {
-    VAL_STRUCT(CqeRes, user_data, 0_u64, res, 0_u32, flags, 0_u32)
+template <typename T> struct SysRes;
+struct ErrSysRes {
+    SysResKind kind;
+    const char *file;
+    int line;
+
+    ErrSysRes(SysResKind _kind) : kind(_kind), file(null), line(0) {}
+    ErrSysRes(SysResKind _kind, const char *_file, int _line)
+        : kind(_kind), file(_file), line(_line) {}
+
+    template <typename Y> operator SysRes<Y>() {
+        SysRes<Y> sysres = SysRes<Y>::from_err(kind);
+        sysres.file      = file;
+        sysres.line      = line;
+        return sysres;
+    }
 };
 
 template <typename T> struct SysRes {
-  private:
     T res;
     bool safety_called;
+    SysResKind kind;
+    const char *file;
+    int line;
 
-    SysRes(T r, SysResKind k) : res(move(r)), kind(k), line(0), file(null) {}
+    SysRes(T r, SysResKind k) : res(move(r)), safety_called(false), kind(k), file(null), line(0) {}
 
     static void err_panic() {
         panic("Accessing the value inside SysRes when it contains an error. "
               "Panicing to prevent undefined behavior.\n");
     }
 
-  public:
-    SysResKind kind;
+    SysRes() : res(T()), safety_called(false), kind(SysResKind::SUCCESS), file(null), line(0) {}
+    SysRes(SysResKind k) : res(T()), safety_called(false), kind(k), file(null), line(0) {}
+    SysRes(T v)
+        : res(move(v)), safety_called(false), kind(SysResKind::SUCCESS), file(null), line(0) {}
 
-    u64 line;
-    const char *file;
+    SysRes(const SysRes &other)            = delete;
+    SysRes &operator=(const SysRes &other) = delete;
 
-    SysRes()
-        : res(move(T())), safety_called(false), kind(SysResKind::SUCCESS), line(0), file(null) {}
-    SysRes(T v) : SysRes(move(v), SysResKind::SUCCESS) {}
+    SysRes(SysRes &&other) noexcept
+        : res(exchange(other.res, T())), safety_called(exchange(other.safety_called, false)),
+          kind(exchange(other.kind, SysResKind::SUCCESS)), file(exchange(other.file, null)),
+          line(exchange(other.line, 0)) {}
+    SysRes &operator=(SysRes &&other) noexcept {
+        if (this != &other) [[likely]] {
+            res           = exchange(other.res, T());
+            safety_called = exchange(other.safety_called, false);
+            kind          = exchange(other.kind, SysResKind::SUCCESS);
+            file          = exchange(other.file, null);
+            line          = exchange(other.line, 0);
+        }
+
+        return *this;
+    }
 
     static SysRes<T> from_kind(T r, SysResKind k) {
         return SysRes<T>(move(r), k);
@@ -362,7 +393,7 @@ template <typename T> struct SysRes {
         return SysRes<T>(move(r), k);
     }
     static SysRes<T> from_err(SysResKind k) {
-        return SysRes<T>(move(T()), k);
+        return SysRes<T>(T(), k);
     }
 
     static SysRes<T> from_sys(usize r) {
@@ -372,15 +403,6 @@ template <typename T> struct SysRes {
         return SysRes<T>::from_kind(
             r, static_cast<u8>((signed_r > -4096 && signed_r < 0) ? -signed_r : 0)
         );
-    }
-
-    __attribute__((no_sanitize("implicit-integer-sign-change", "unsigned-integer-overflow")))
-    SysRes(io_uring_cqe e) {
-        static_assert(is_same<T, CqeRes>::value, "T is not CqeRes");
-
-        const i64 signed_r = static_cast<i64>(e.res);
-        kind = static_cast<SysResKind>((signed_r > -4096 && signed_r < 0) ? -signed_r : 0);
-        res  = move(CqeRes(e.user_data, static_cast<u32>(e.res), e.flags));
     }
 
     [[nodiscard]]
@@ -403,48 +425,28 @@ template <typename T> struct SysRes {
     }
     DIAG_IGNORE_POP
 
-    template <typename Y> SysRes<Y> unsafe_cast_aligned(this const SysRes &self) {
-        static_assert(is_pointer<T>::value && is_pointer<Y>::value, "Not a pointer!");
-
-        constexpr usize alignment = alignof(remove_pointer_t<Y>);
-        usize addr                = reinterpret_cast<usize>(self.res);
-        const usize misalignment  = addr % alignment;
-        if (misalignment != 0) addr += (alignment - misalignment);
-
-        return SysRes<Y>::from_kind(reinterpret_cast<Y>(addr), self.kind);
-    }
-
-    template <typename Y> SysRes<Y> unsafe_swap(this const SysRes &self, Y d) {
-        return SysRes<Y>::from_kind(move(d), self.kind);
-    }
-
     template <typename Y> SysRes<Y> return_err(this const SysRes &self) {
-        return self.template unsafe_swap<Y>(move(Y()));
-    }
-    template <typename Y> SysRes<Y> return_err(this const SysRes &self, Y d) {
-        return self.template unsafe_swap<Y>(move(d));
+        return SysRes<Y>::from_err(self.kind);
     }
 
     SysRes<None> err_or_none(this const SysRes &self) {
-        return self.template unsafe_swap<None>(None());
+        return SysRes<None>::from_err(self.kind);
     }
 
-    T unsafe_unwrap(this SysRes &self) {
+    inline __attribute__((always_inline)) T unsafe_unwrap(this SysRes &self) {
         return move(self.res);
     }
 
-    T unwrap(this SysRes &self) {
+    inline __attribute__((always_inline)) T unwrap(this SysRes &self) {
 #ifndef __OPTIMIZE__
         if (self.is_err()) SysRes<T>::err_panic();
 #else
         if (!self.safety_called && self.is_err()) SysRes<T>::err_panic();
 #endif
 
-        return move(self.unsafe_unwrap());
+        return self.unsafe_unwrap();
     }
 };
-
-using IoUringRes = SysRes<CqeRes>;
 
 #define PP_CONCAT_(A, B)    A##B
 #define PP_CONCAT(A, B)     PP_CONCAT_(A, B)
@@ -452,26 +454,20 @@ using IoUringRes = SysRes<CqeRes>;
 
 #define __TRY1(expr, submitted)                                                                    \
     ({                                                                                             \
-        auto submitted = ::vortex::move(expr);                                                     \
-        if (submitted.is_err()) [[unlikely]]                                                       \
-            return submitted.err_or_none();                                                        \
-        ::vortex::move(submitted.unwrap());                                                        \
+        auto submitted = VORTEX_NS(move((expr)));                                                  \
+        if (submitted.is_err()) [[unlikely]] {                                                     \
+            return VORTEX_NS(ErrSysRes(submitted.kind, __FILE__, __LINE__));                       \
+        }                                                                                          \
+        VORTEX_NS(move(submitted.res));                                                            \
     })
-#define __TRY2(expr, t, submitted)                                                                 \
+#define __TRY2(expr, e, submitted)                                                                 \
     ({                                                                                             \
-        auto submitted = ::vortex::move(expr);                                                     \
-        if (submitted.is_err()) [[unlikely]]                                                       \
-            return submitted.template return_err<t>();                                             \
-        ::vortex::move(submitted.unwrap());                                                        \
-    })
-#define __TRY3(expr, t, e, submitted)                                                              \
-    ({                                                                                             \
-        auto submitted = ::vortex::move(expr);                                                     \
-        if (submitted == reinterpret_cast<decltype(submitted)>(0)) [[unlikely]]                    \
-            return ::vortex::SysRes<t>::from_err(e);                                               \
-        ::vortex::move(submitted);                                                                 \
+        auto submitted = VORTEX_NS(move((expr)));                                                  \
+        if (submitted == reinterpret_cast<decltype(submitted)>(0)) [[unlikely]] {                  \
+            return VORTEX_NS(ErrSysRes(e, __FILE__, __LINE__));                                    \
+        }                                                                                          \
+        VORTEX_NS(move(submitted.res));                                                            \
     })
 #define TRY1(...) __TRY1(__VA_ARGS__, UNIQUE_NAME(submitted))
 #define TRY2(...) __TRY2(__VA_ARGS__, UNIQUE_NAME(submitted))
-#define TRY3(...) __TRY3(__VA_ARGS__, UNIQUE_NAME(submitted))
 #define TRY(...)  _VFUNC(TRY, __VA_ARGS__)

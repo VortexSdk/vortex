@@ -33,10 +33,10 @@ static SysRes<usize> io_uring_setup(u32 entries, struct io_uring_params *p) {
     return syscall(__NR_io_uring_setup, entries, p);
 }
 static SysRes<usize>
-io_uring_enter(FdU fd, u32 to_submit, u32 min_complete, u32 flags, const void *argp, usize argsz) {
+io_uring_enter(Fd fd, u32 to_submit, u32 min_complete, u32 flags, const void *argp, usize argsz) {
     return syscall(__NR_io_uring_enter, fd, to_submit, min_complete, flags, argp, argsz);
 }
-static SysRes<usize> io_uring_register(FdU fd, unsigned int op, void *arg, unsigned int nr_args) {
+static SysRes<usize> io_uring_register(Fd fd, unsigned int op, void *arg, unsigned int nr_args) {
     return syscall(__NR_io_uring_register, fd, op, arg, nr_args);
 }
 static SysRes<usize>
@@ -47,7 +47,7 @@ static SysRes<usize>
 lsetxattr(const char *path, const char *name, const void *value, usize size, int flags) {
     return syscall(__NR_lsetxattr, path, name, value, size, flags);
 }
-static SysRes<usize> fsetxattr(FdI fd, const char *name, const void *value, usize size, int flags) {
+static SysRes<usize> fsetxattr(Fd fd, const char *name, const void *value, usize size, int flags) {
     return syscall(__NR_fsetxattr, fd, name, value, size, flags);
 }
 static SysRes<usize> getxattr(const char *path, const char *name, void *value, usize size) {
@@ -56,7 +56,7 @@ static SysRes<usize> getxattr(const char *path, const char *name, void *value, u
 static SysRes<usize> lgetxattr(const char *path, const char *name, void *value, usize size) {
     return syscall(__NR_lgetxattr, path, name, value, size);
 }
-static SysRes<usize> fgetxattr(FdI fd, const char *name, void *value, usize size) {
+static SysRes<usize> fgetxattr(Fd fd, const char *name, void *value, usize size) {
     return syscall(__NR_fgetxattr, fd, name, value, size);
 }
 static SysRes<usize> listxattr(const char *path, char *list, usize size) {
@@ -65,7 +65,7 @@ static SysRes<usize> listxattr(const char *path, char *list, usize size) {
 static SysRes<usize> llistxattr(const char *path, char *list, usize size) {
     return syscall(__NR_llistxattr, path, list, size);
 }
-static SysRes<usize> flistxattr(FdI fd, char *list, usize size) {
+static SysRes<usize> flistxattr(Fd fd, char *list, usize size) {
     return syscall(__NR_flistxattr, fd, list, size);
 }
 static SysRes<usize> removexattr(const char *path, const char *name) {
@@ -74,7 +74,7 @@ static SysRes<usize> removexattr(const char *path, const char *name) {
 static SysRes<usize> lremovexattr(const char *path, const char *name) {
     return syscall(__NR_lremovexattr, path, name);
 }
-static SysRes<usize> fremovexattr(FdI fd, const char *name) {
+static SysRes<usize> fremovexattr(Fd fd, const char *name) {
     return syscall(__NR_fremovexattr, fd, name);
 }
 static SysRes<char *> getcwd(char *buf, unsigned long size) {
@@ -86,31 +86,31 @@ static SysRes<usize> eventfd2(unsigned int count, int flags) {
 static SysRes<usize> epoll_create1(int flags) {
     return syscall(__NR_epoll_create1, flags);
 }
-static SysRes<usize> epoll_ctl(FdI epfd, int op, FdI fd, struct epoll_event *event) {
+static SysRes<usize> epoll_ctl(Fd epfd, int op, Fd fd, struct epoll_event *event) {
     return syscall(__NR_epoll_ctl, epfd, op, fd, event);
 }
 static SysRes<usize> epoll_pwait2(
-    FdI epfd, struct epoll_event *events, int maxevents, const struct __kernel_timespec *timeout,
+    Fd epfd, struct epoll_event *events, int maxevents, const struct __kernel_timespec *timeout,
     const sigset_t *sigmask, usize sigsetsize
 ) {
     return syscall(__NR_epoll_pwait2, epfd, events, maxevents, timeout, sigmask, sigsetsize);
 }
-static SysRes<usize> dup3(FdU oldfd, FdU newfd, int flags) {
+static SysRes<usize> dup3(Fd oldfd, Fd newfd, int flags) {
     return syscall(__NR_dup3, oldfd, newfd, flags);
 }
-static SysRes<usize> fcntl(FdU fd, unsigned int cmd, unsigned long arg) {
+static SysRes<usize> fcntl(Fd fd, unsigned int cmd, unsigned long arg) {
     return syscall(__NR_fcntl, fd, cmd, arg);
 }
 static SysRes<usize> inotify_init1(int flags) {
     return syscall(__NR_inotify_init1, flags);
 }
-static SysRes<usize> inotify_add_watch(FdI fd, const char *path, u32 mask) {
+static SysRes<usize> inotify_add_watch(Fd fd, const char *path, u32 mask) {
     return syscall(__NR_inotify_add_watch, fd, path, mask);
 }
-static SysRes<usize> inotify_rm_watch(FdI fd, __s32 wd) {
+static SysRes<usize> inotify_rm_watch(Fd fd, __s32 wd) {
     return syscall(__NR_inotify_rm_watch, fd, wd);
 }
-static SysRes<usize> ioctl(FdU fd, unsigned int cmd, unsigned long arg) {
+static SysRes<usize> ioctl(Fd fd, unsigned int cmd, unsigned long arg) {
     return syscall(__NR_ioctl, fd, cmd, arg);
 }
 static SysRes<usize> ioprio_set(int which, int who, int ioprio) {
@@ -119,26 +119,26 @@ static SysRes<usize> ioprio_set(int which, int who, int ioprio) {
 static SysRes<usize> ioprio_get(int which, int who) {
     return syscall(__NR_ioprio_get, which, who);
 }
-static SysRes<usize> flock(FdU fd, unsigned int cmd) {
+static SysRes<usize> flock(Fd fd, unsigned int cmd) {
     return syscall(__NR_flock, fd, cmd);
 }
-static SysRes<usize> mknodat(FdI dfd, const char *filename, umode_t mode, unsigned dev) {
+static SysRes<usize> mknodat(Fd dfd, const char *filename, umode_t mode, unsigned dev) {
     return syscall(__NR_mknodat, dfd, filename, mode, dev);
 }
-static SysRes<usize> mkdirat(FdI dfd, const char *pathname, umode_t mode) {
+static SysRes<usize> mkdirat(Fd dfd, const char *pathname, umode_t mode) {
     return syscall(__NR_mkdirat, dfd, pathname, mode);
 }
-static SysRes<usize> unlinkat(FdI dfd, const char *pathname, int flag) {
+static SysRes<usize> unlinkat(Fd dfd, const char *pathname, int flag) {
     return syscall(__NR_unlinkat, dfd, pathname, flag);
 }
-static SysRes<usize> symlinkat(const char *oldname, FdI newdfd, const char *newname) {
+static SysRes<usize> symlinkat(const char *oldname, Fd newdfd, const char *newname) {
     return syscall(__NR_symlinkat, oldname, newdfd, newname);
 }
 static SysRes<usize>
-linkat(FdI olddfd, const char *oldname, FdI newdfd, const char *newname, int flags) {
+linkat(Fd olddfd, const char *oldname, Fd newdfd, const char *newname, int flags) {
     return syscall(__NR_linkat, olddfd, oldname, newdfd, newname, flags);
 }
-static SysRes<usize> renameat(FdI olddfd, const char *oldname, FdI newdfd, const char *newname) {
+static SysRes<usize> renameat(Fd olddfd, const char *oldname, Fd newdfd, const char *newname) {
     return syscall(__NR_renameat, olddfd, oldname, newdfd, newname);
 }
 static SysRes<usize> umount(char *name, int flags) {
@@ -154,7 +154,7 @@ static SysRes<usize> pivot_root(const char *new_root, const char *put_old) {
 static SysRes<usize> statfs(const char *path, usize sz, struct statfs64 *buf) {
     return syscall(__NR_statfs, path, sz, buf);
 }
-static SysRes<usize> fstatfs(FdU fd, usize sz, struct statfs64 *buf) {
+static SysRes<usize> fstatfs(Fd fd, usize sz, struct statfs64 *buf) {
     return syscall(__NR_fstatfs, fd, sz, buf);
 }
 static SysRes<usize>
@@ -168,43 +168,43 @@ listmount(const struct mnt_id_req *req, u64 *mnt_ids, usize nr_mnt_ids, unsigned
 static SysRes<usize> truncate(const char *path, long length) {
     return syscall(__NR_truncate, path, length);
 }
-static SysRes<usize> ftruncate(FdU fd, off_t length) {
+static SysRes<usize> ftruncate(Fd fd, off_t length) {
     return syscall(__NR_ftruncate, fd, length);
 }
-static SysRes<usize> fallocate(FdI fd, int mode, loff_t offset, loff_t len) {
+static SysRes<usize> fallocate(Fd fd, int mode, loff_t offset, loff_t len) {
     return syscall(__NR_fallocate, fd, mode, offset, len);
 }
-static SysRes<usize> faccessat2(FdI dfd, const char *filename, int mode, int flags) {
+static SysRes<usize> faccessat2(Fd dfd, const char *filename, int mode, int flags) {
     return syscall(__NR_faccessat2, dfd, filename, mode, flags);
 }
 static SysRes<usize> chdir(const char *filename) {
     return syscall(__NR_chdir, filename);
 }
-static SysRes<usize> fchdir(FdU fd) {
+static SysRes<usize> fchdir(Fd fd) {
     return syscall(__NR_fchdir, fd);
 }
 static SysRes<usize> chroot(const char *filename) {
     return syscall(__NR_chroot, filename);
 }
-static SysRes<usize> fchmod(FdU fd, umode_t mode) {
+static SysRes<usize> fchmod(Fd fd, umode_t mode) {
     return syscall(__NR_fchmod, fd, mode);
 }
-static SysRes<usize> fchmodat2(FdI dfd, const char *filename, umode_t mode, unsigned int flags) {
+static SysRes<usize> fchmodat2(Fd dfd, const char *filename, umode_t mode, unsigned int flags) {
     return syscall(__NR_fchmodat2, dfd, filename, mode, flags);
 }
-static SysRes<usize> fchownat(FdI dfd, const char *filename, uid_t user, gid_t group, int flag) {
+static SysRes<usize> fchownat(Fd dfd, const char *filename, uid_t user, gid_t group, int flag) {
     return syscall(__NR_fchownat, dfd, filename, user, group, flag);
 }
-static SysRes<usize> fchown(FdU fd, uid_t user, gid_t group) {
+static SysRes<usize> fchown(Fd fd, uid_t user, gid_t group) {
     return syscall(__NR_fchown, fd, user, group);
 }
-static SysRes<usize> openat2(FdI dfd, const char *filename, struct open_how *how, usize size) {
+static SysRes<usize> openat2(Fd dfd, const char *filename, struct open_how *how, usize size) {
     return syscall(__NR_openat2, dfd, filename, how, size);
 }
-static SysRes<usize> close(FdU fd) {
+static SysRes<usize> close(Fd fd) {
     return syscall(__NR_close, fd);
 }
-static SysRes<usize> close_range(FdU fd, FdU max_fd, unsigned int flags) {
+static SysRes<usize> close_range(Fd fd, Fd max_fd, unsigned int flags) {
     return syscall(__NR_close_range, fd, max_fd, flags);
 }
 static SysRes<usize> vhangup() {
@@ -216,44 +216,44 @@ static SysRes<usize> pipe2(int *fildes, int flags) {
 static SysRes<usize> quotactl(unsigned int cmd, const char *special, qid_t id, void *addr) {
     return syscall(__NR_quotactl, cmd, special, id, addr);
 }
-static SysRes<usize> quotactl_fd(FdU fd, unsigned int cmd, qid_t id, void *addr) {
+static SysRes<usize> quotactl_fd(Fd fd, unsigned int cmd, qid_t id, void *addr) {
     return syscall(__NR_quotactl_fd, fd, cmd, id, addr);
 }
-static SysRes<usize> getdents64(FdU fd, linux_dirent64 *dirent, unsigned int count) {
+static SysRes<usize> getdents64(Fd fd, linux_dirent64 *dirent, unsigned int count) {
     return syscall(__NR_getdents64, fd, dirent, count);
 }
-static SysRes<off_t> lseek(FdU fd, off_t offset, unsigned int whence) {
+static SysRes<off_t> lseek(Fd fd, off_t offset, unsigned int whence) {
     return syscall(__NR_lseek, fd, offset, whence).unsafe_cast<off_t>();
 }
-static SysRes<usize> read(FdU fd, char *buf, usize count) {
+static SysRes<usize> read(Fd fd, char *buf, usize count) {
     return syscall(__NR_read, fd, buf, count);
 }
-static SysRes<usize> write(FdU fd, const char *buf, usize count) {
+static SysRes<usize> write(Fd fd, const char *buf, usize count) {
     return syscall(__NR_write, fd, buf, count);
 }
-static SysRes<usize> readv(FdUL fd, const struct iovec *vec, unsigned long vlen) {
+static SysRes<usize> readv(Fd fd, const struct iovec *vec, unsigned long vlen) {
     return syscall(__NR_readv, fd, vec, vlen);
 }
-static SysRes<usize> writev(FdUL fd, const struct iovec *vec, unsigned long vlen) {
+static SysRes<usize> writev(Fd fd, const struct iovec *vec, unsigned long vlen) {
     return syscall(__NR_writev, fd, vec, vlen);
 }
-static SysRes<usize> pread64(FdU fd, char *buf, usize count, loff_t pos) {
+static SysRes<usize> pread64(Fd fd, char *buf, usize count, loff_t pos) {
     return syscall(__NR_pread64, fd, buf, count, pos);
 }
-static SysRes<usize> pwrite64(FdU fd, const char *buf, usize count, loff_t pos) {
+static SysRes<usize> pwrite64(Fd fd, const char *buf, usize count, loff_t pos) {
     return syscall(__NR_pwrite64, fd, buf, count, pos);
 }
 static SysRes<usize> preadv(
-    FdUL fd, const struct iovec *vec, unsigned long vlen, unsigned long pos_l, unsigned long pos_h
+    Fd fd, const struct iovec *vec, unsigned long vlen, unsigned long pos_l, unsigned long pos_h
 ) {
     return syscall(__NR_preadv, fd, vec, vlen, pos_l, pos_h);
 }
 static SysRes<usize> pwritev(
-    FdUL fd, const struct iovec *vec, unsigned long vlen, unsigned long pos_l, unsigned long pos_h
+    Fd fd, const struct iovec *vec, unsigned long vlen, unsigned long pos_l, unsigned long pos_h
 ) {
     return syscall(__NR_pwritev, fd, vec, vlen, pos_l, pos_h);
 }
-static SysRes<usize> sendfile(FdI out_fd, FdI in_fd, loff_t *offset, usize count) {
+static SysRes<usize> sendfile(Fd out_fd, Fd in_fd, loff_t *offset, usize count) {
     return syscall(__NR_sendfile, out_fd, in_fd, offset, count);
 }
 static SysRes<usize> pselect6(int a, fd_set *b, fd_set *c, fd_set *d, timespec *e, void *f) {
@@ -263,50 +263,50 @@ static SysRes<usize>
 ppoll(struct pollfd *a, unsigned int b, timespec *c, const sigset_t *d, usize e) {
     return syscall(__NR_ppoll, a, b, c, d, e);
 }
-static SysRes<usize> signalfd4(FdI ufd, sigset_t *user_mask, usize sizemask, int flags) {
-    return syscall(__NR_signalfd4, ufd, user_mask, sizemask, flags);
+static SysRes<usize> signalfd(Fd ufd, sigset_t *user_mask, usize sizemask, int flags) {
+    return syscall(__NR_signalfd, ufd, user_mask, sizemask, flags);
 }
 static SysRes<usize>
-vmsplice(FdI fd, const struct iovec *iov, unsigned long nr_segs, unsigned int flags) {
+vmsplice(Fd fd, const struct iovec *iov, unsigned long nr_segs, unsigned int flags) {
     return syscall(__NR_vmsplice, fd, iov, nr_segs, flags);
 }
 static SysRes<usize>
-splice(FdI fd_in, loff_t *off_in, FdI fd_out, loff_t *off_out, usize len, unsigned int flags) {
+splice(Fd fd_in, loff_t *off_in, Fd fd_out, loff_t *off_out, usize len, unsigned int flags) {
     return syscall(__NR_splice, fd_in, off_in, fd_out, off_out, len, flags);
 }
-static SysRes<usize> tee(FdI fdin, FdI fdout, usize len, unsigned int flags) {
+static SysRes<usize> tee(Fd fdin, Fd fdout, usize len, unsigned int flags) {
     return syscall(__NR_tee, fdin, fdout, len, flags);
 }
-static SysRes<usize> readlinkat(FdI dfd, const char *path, char *buf, int bufsiz) {
+static SysRes<usize> readlinkat(Fd dfd, const char *path, char *buf, int bufsiz) {
     return syscall(__NR_readlinkat, dfd, path, buf, bufsiz);
 }
-static SysRes<usize> newfstatat(FdI dfd, const char *filename, struct stat *statbuf, int flag) {
+static SysRes<usize> newfstatat(Fd dfd, const char *filename, struct stat *statbuf, int flag) {
     return syscall(__NR_newfstatat, dfd, filename, statbuf, flag);
 }
 static SysRes<usize> sync() {
     return syscall(__NR_sync);
 }
-static SysRes<usize> fsync(FdU fd) {
+static SysRes<usize> fsync(Fd fd) {
     return syscall(__NR_fsync, fd);
 }
-static SysRes<usize> fdatasync(FdU fd) {
+static SysRes<usize> fdatasync(Fd fd) {
     return syscall(__NR_fdatasync, fd);
 }
-static SysRes<usize> sync_file_range(FdI fd, unsigned int flags, loff_t offset, loff_t nbytes) {
+static SysRes<usize> sync_file_range(Fd fd, unsigned int flags, loff_t offset, loff_t nbytes) {
     return syscall(__NR_sync_file_range, fd, flags, offset, nbytes);
 }
 static SysRes<usize> timerfd_create(int clockid, int flags) {
     return syscall(__NR_timerfd_create, clockid, flags);
 }
 static SysRes<usize> timerfd_settime(
-    FdI ufd, int flags, const struct __kernel_itimerspec *utmr, struct __kernel_itimerspec *otmr
+    Fd ufd, int flags, const struct __kernel_itimerspec *utmr, struct __kernel_itimerspec *otmr
 ) {
     return syscall(__NR_timerfd_settime, ufd, flags, utmr, otmr);
 }
-static SysRes<usize> timerfd_gettime(FdI ufd, struct __kernel_itimerspec *otmr) {
+static SysRes<usize> timerfd_gettime(Fd ufd, struct __kernel_itimerspec *otmr) {
     return syscall(__NR_timerfd_gettime, ufd, otmr);
 }
-static SysRes<usize> utimensat(FdI dfd, const char *filename, timespec *utimes, int flags) {
+static SysRes<usize> utimensat(Fd dfd, const char *filename, timespec *utimes, int flags) {
     return syscall(__NR_utimensat, dfd, filename, utimes, flags);
 }
 static SysRes<usize> acct(const char *name) {
@@ -700,22 +700,22 @@ static SysRes<usize> sendto(int a, void *b, usize c, unsigned d, sockaddr *e, in
 static SysRes<usize> recvfrom(int a, void *b, usize c, unsigned d, sockaddr *e, int *f) {
     return syscall(__NR_recvfrom, a, b, c, d, e, f);
 }
-static SysRes<usize> setsockopt(FdI fd, int level, int optname, char *optval, int optlen) {
+static SysRes<usize> setsockopt(Fd fd, int level, int optname, char *optval, int optlen) {
     return syscall(__NR_setsockopt, fd, level, optname, optval, optlen);
 }
-static SysRes<usize> getsockopt(FdI fd, int level, int optname, char *optval, int *optlen) {
+static SysRes<usize> getsockopt(Fd fd, int level, int optname, char *optval, int *optlen) {
     return syscall(__NR_getsockopt, fd, level, optname, optval, optlen);
 }
 static SysRes<usize> shutdown(int a, int b) {
     return syscall(__NR_shutdown, a, b);
 }
-static SysRes<usize> sendmsg(FdI fd, user_msghdr *msg, unsigned flags) {
+static SysRes<usize> sendmsg(Fd fd, user_msghdr *msg, unsigned flags) {
     return syscall(__NR_sendmsg, fd, msg, flags);
 }
-static SysRes<usize> recvmsg(FdI fd, user_msghdr *msg, unsigned flags) {
+static SysRes<usize> recvmsg(Fd fd, user_msghdr *msg, unsigned flags) {
     return syscall(__NR_recvmsg, fd, msg, flags);
 }
-static SysRes<usize> readahead(FdI fd, loff_t offset, usize count) {
+static SysRes<usize> readahead(Fd fd, loff_t offset, usize count) {
     return syscall(__NR_readahead, fd, offset, count);
 }
 static SysRes<u8 *> brk(unsigned long brk) {
@@ -749,7 +749,7 @@ static SysRes<usize>
 execve(const char *filename, const char *const *argv, const char *const *envp) {
     return syscall(__NR_execve, filename, argv, envp);
 }
-static SysRes<usize> fadvise64(FdI fd, loff_t offset, loff_t len, int advice) {
+static SysRes<usize> fadvise64(Fd fd, loff_t offset, loff_t len, int advice) {
     return syscall(__NR_fadvise64, fd, offset, len, advice);
 }
 static SysRes<usize> swapon(const char *specialfile, int swap_flags) {
@@ -783,10 +783,10 @@ static SysRes<usize> madvise(unsigned long start, usize len, int behavior) {
     return syscall(__NR_madvise, start, len, behavior);
 }
 static SysRes<usize>
-process_madvise(FdI pidfd, const struct iovec *vec, usize vlen, int behavior, unsigned int flags) {
+process_madvise(Fd pidfd, const struct iovec *vec, usize vlen, int behavior, unsigned int flags) {
     return syscall(__NR_process_madvise, pidfd, vec, vlen, behavior, flags);
 }
-static SysRes<usize> process_mrelease(FdI pidfd, unsigned int flags) {
+static SysRes<usize> process_mrelease(Fd pidfd, unsigned int flags) {
     return syscall(__NR_process_mrelease, pidfd, flags);
 }
 static SysRes<usize> remap_file_pages(
@@ -826,7 +826,7 @@ static SysRes<usize> rt_tgsigqueueinfo(pid_t tgid, pid_t pid, int sig, siginfo_t
     return syscall(__NR_rt_tgsigqueueinfo, tgid, pid, sig, uinfo);
 }
 static SysRes<usize> perf_event_open(
-    struct perf_event_attr *attr_uptr, pid_t pid, int cpu, FdI group_fd, unsigned long flags
+    struct perf_event_attr *attr_uptr, pid_t pid, int cpu, Fd group_fd, unsigned long flags
 ) {
     return syscall(__NR_perf_event_open, attr_uptr, pid, cpu, group_fd, flags);
 }
@@ -834,7 +834,7 @@ static SysRes<usize> accept4(int a, sockaddr *b, int *c, int d) {
     return syscall(__NR_accept4, a, b, c, d);
 }
 static SysRes<usize>
-recvmmsg(FdI fd, mmsghdr *msg, unsigned int vlen, unsigned flags, timespec *timeout) {
+recvmmsg(Fd fd, mmsghdr *msg, unsigned int vlen, unsigned flags, timespec *timeout) {
     return syscall(__NR_recvmmsg, fd, msg, vlen, flags, timeout);
 }
 static SysRes<pid_t> wait4(pid_t pid, int *stat_addr, int options, struct rusage *ru) {
@@ -849,31 +849,31 @@ static SysRes<usize> fanotify_init(unsigned int flags, unsigned int event_f_flag
     return syscall(__NR_fanotify_init, flags, event_f_flags);
 }
 static SysRes<usize> fanotify_mark(
-    FdI fanotify_fd, unsigned int flags, unsigned int mask_1, unsigned int mask_2, FdI dfd,
+    Fd fanotify_fd, unsigned int flags, unsigned int mask_1, unsigned int mask_2, Fd dfd,
     const char *pathname
 ) {
     return syscall(__NR_fanotify_mark, fanotify_fd, flags, mask_1, mask_2, dfd, pathname);
 }
 static SysRes<usize>
-name_to_handle_at(FdI dfd, const char *name, file_handle *handle, void *mnt_id, int flag) {
+name_to_handle_at(Fd dfd, const char *name, file_handle *handle, void *mnt_id, int flag) {
     return syscall(__NR_name_to_handle_at, dfd, name, handle, mnt_id, flag);
 }
-static SysRes<usize> open_by_handle_at(FdI mountdirfd, file_handle *handle, int flags) {
+static SysRes<usize> open_by_handle_at(Fd mountdirfd, file_handle *handle, int flags) {
     return syscall(__NR_open_by_handle_at, mountdirfd, handle, flags);
 }
 static SysRes<usize> clock_adjtime(clockid_t which_clock, struct __kernel_timex *tx) {
     return syscall(__NR_clock_adjtime, which_clock, tx);
 }
-static SysRes<usize> syncfs(FdI fd) {
+static SysRes<usize> syncfs(Fd fd) {
     return syscall(__NR_syncfs, fd);
 }
-static SysRes<usize> setns(FdI fd, int nstype) {
+static SysRes<usize> setns(Fd fd, int nstype) {
     return syscall(__NR_setns, fd, nstype);
 }
 static SysRes<usize> pidfd_open(pid_t pid, unsigned int flags) {
     return syscall(__NR_pidfd_open, pid, flags);
 }
-static SysRes<usize> sendmmsg(FdI fd, mmsghdr *msg, unsigned int vlen, unsigned flags) {
+static SysRes<usize> sendmmsg(Fd fd, mmsghdr *msg, unsigned int vlen, unsigned flags) {
     return syscall(__NR_sendmmsg, fd, msg, vlen, flags);
 }
 static SysRes<usize> process_vm_readv(
@@ -892,7 +892,7 @@ static SysRes<usize>
 kcmp(pid_t pid1, pid_t pid2, int type, unsigned long idx1, unsigned long idx2) {
     return syscall(__NR_kcmp, pid1, pid2, type, idx1, idx2);
 }
-static SysRes<usize> finit_module(FdI fd, const char *uargs, int flags) {
+static SysRes<usize> finit_module(Fd fd, const char *uargs, int flags) {
     return syscall(__NR_finit_module, fd, uargs, flags);
 }
 static SysRes<usize> sched_setattr(pid_t pid, struct sched_attr *attr, unsigned int flags) {
@@ -903,7 +903,7 @@ sched_getattr(pid_t pid, struct sched_attr *attr, unsigned int size, unsigned in
     return syscall(__NR_sched_getattr, pid, attr, size, flags);
 }
 static SysRes<usize>
-renameat2(FdI olddfd, const char *oldname, FdI newdfd, const char *newname, unsigned int flags) {
+renameat2(Fd olddfd, const char *oldname, Fd newdfd, const char *newname, unsigned int flags) {
     return syscall(__NR_renameat2, olddfd, oldname, newdfd, newname, flags);
 }
 static SysRes<usize> seccomp(unsigned int op, unsigned int flags, void *uargs) {
@@ -919,7 +919,7 @@ static SysRes<usize> bpf(int cmd, union bpf_attr *attr, unsigned int size) {
     return syscall(__NR_bpf, cmd, attr, size);
 }
 static SysRes<usize> execveat(
-    FdI dfd, const char *filename, const char *const *argv, const char *const *envp, int flags
+    Fd dfd, const char *filename, const char *const *argv, const char *const *envp, int flags
 ) {
     return syscall(__NR_execveat, dfd, filename, argv, envp, flags);
 }
@@ -933,18 +933,18 @@ static SysRes<usize> mlock2(unsigned long start, usize len, int flags) {
     return syscall(__NR_mlock2, start, len, flags);
 }
 static SysRes<usize> copy_file_range(
-    FdI fd_in, loff_t *off_in, FdI fd_out, loff_t *off_out, usize len, unsigned int flags
+    Fd fd_in, loff_t *off_in, Fd fd_out, loff_t *off_out, usize len, unsigned int flags
 ) {
     return syscall(__NR_copy_file_range, fd_in, off_in, fd_out, off_out, len, flags);
 }
 static SysRes<usize> preadv2(
-    FdUL fd, const struct iovec *vec, unsigned long vlen, unsigned long pos_l, unsigned long pos_h,
+    Fd fd, const struct iovec *vec, unsigned long vlen, unsigned long pos_l, unsigned long pos_h,
     rwf_t flags
 ) {
     return syscall(__NR_preadv2, fd, vec, vlen, pos_l, pos_h, flags);
 }
 static SysRes<usize> pwritev2(
-    FdUL fd, const struct iovec *vec, unsigned long vlen, unsigned long pos_l, unsigned long pos_h,
+    Fd fd, const struct iovec *vec, unsigned long vlen, unsigned long pos_l, unsigned long pos_h,
     rwf_t flags
 ) {
     return syscall(__NR_pwritev2, fd, vec, vlen, pos_l, pos_h, flags);
@@ -959,42 +959,41 @@ static SysRes<usize> pkey_free(int pkey) {
     return syscall(__NR_pkey_free, pkey);
 }
 static SysRes<usize>
-statx(FdI dfd, const char *path, unsigned flags, unsigned mask, statx_t *buffer) {
+statx(Fd dfd, const char *path, unsigned flags, unsigned mask, statx_t *buffer) {
     return syscall(__NR_statx, dfd, path, flags, mask, buffer);
 }
 static SysRes<usize> rseq(struct rseq *rseq, u32 rseq_len, int flags, u32 sig) {
     return syscall(__NR_rseq, rseq, rseq_len, flags, sig);
 }
-static SysRes<usize> open_tree(FdI dfd, const char *path, unsigned flags) {
+static SysRes<usize> open_tree(Fd dfd, const char *path, unsigned flags) {
     return syscall(__NR_open_tree, dfd, path, flags);
 }
 static SysRes<usize> move_mount(
-    FdI from_dfd, const char *from_path, FdI to_dfd, const char *to_path, unsigned int ms_flags
+    Fd from_dfd, const char *from_path, Fd to_dfd, const char *to_path, unsigned int ms_flags
 ) {
     return syscall(__NR_move_mount, from_dfd, from_path, to_dfd, to_path, ms_flags);
 }
-static SysRes<usize> mount_setattr(
-    FdI dfd, const char *path, unsigned int flags, struct mount_attr *uattr, usize usize
-) {
+static SysRes<usize>
+mount_setattr(Fd dfd, const char *path, unsigned int flags, struct mount_attr *uattr, usize usize) {
     return syscall(__NR_mount_setattr, dfd, path, flags, uattr, usize);
 }
 static SysRes<usize> fsopen(const char *fs_name, unsigned int flags) {
     return syscall(__NR_fsopen, fs_name, flags);
 }
 static SysRes<usize>
-fsconfig(FdI fs_fd, unsigned int cmd, const char *key, const void *value, int aux) {
+fsconfig(Fd fs_fd, unsigned int cmd, const char *key, const void *value, int aux) {
     return syscall(__NR_fsconfig, fs_fd, cmd, key, value, aux);
 }
-static SysRes<usize> fsmount(FdI fs_fd, unsigned int flags, unsigned int ms_flags) {
+static SysRes<usize> fsmount(Fd fs_fd, unsigned int flags, unsigned int ms_flags) {
     return syscall(__NR_fsmount, fs_fd, flags, ms_flags);
 }
-static SysRes<usize> fspick(FdI dfd, const char *path, unsigned int flags) {
+static SysRes<usize> fspick(Fd dfd, const char *path, unsigned int flags) {
     return syscall(__NR_fspick, dfd, path, flags);
 }
-static SysRes<usize> pidfd_send_signal(FdI pidfd, int sig, siginfo_t *info, unsigned int flags) {
+static SysRes<usize> pidfd_send_signal(Fd pidfd, int sig, siginfo_t *info, unsigned int flags) {
     return syscall(__NR_pidfd_send_signal, pidfd, sig, info, flags);
 }
-static SysRes<usize> pidfd_getfd(FdI pidfd, FdI fd, unsigned int flags) {
+static SysRes<usize> pidfd_getfd(Fd pidfd, Fd fd, unsigned int flags) {
     return syscall(__NR_pidfd_getfd, pidfd, fd, flags);
 }
 static SysRes<usize>
@@ -1002,11 +1001,11 @@ landlock_create_ruleset(const struct landlock_ruleset_attr *attr, usize size, __
     return syscall(__NR_landlock_create_ruleset, attr, size, flags);
 }
 static SysRes<usize> landlock_add_rule(
-    FdI ruleset_fd, enum landlock_rule_type rule_type, const void *rule_attr, __u32 flags
+    Fd ruleset_fd, enum landlock_rule_type rule_type, const void *rule_attr, __u32 flags
 ) {
     return syscall(__NR_landlock_add_rule, ruleset_fd, rule_type, rule_attr, flags);
 }
-static SysRes<usize> landlock_restrict_self(FdI ruleset_fd, __u32 flags) {
+static SysRes<usize> landlock_restrict_self(Fd ruleset_fd, __u32 flags) {
     return syscall(__NR_landlock_restrict_self, ruleset_fd, flags);
 }
 static SysRes<usize> memfd_secret(unsigned int flags) {
@@ -1017,9 +1016,8 @@ static SysRes<usize> set_mempolicy_home_node(
 ) {
     return syscall(__NR_set_mempolicy_home_node, start, len, home_node, flags);
 }
-static SysRes<usize> cachestat(
-    FdU fd, struct cachestat_range *cstat_range, struct cachestat *cstat, unsigned int flags
-) {
+static SysRes<usize>
+cachestat(Fd fd, struct cachestat_range *cstat_range, struct cachestat *cstat, unsigned int flags) {
     return syscall(__NR_cachestat, fd, cstat_range, cstat, flags);
 }
 static SysRes<usize> map_shadow_stack(void *addr, unsigned long size, unsigned int flags) {
@@ -1042,7 +1040,7 @@ static SysRes<usize> utime(char *filename, struct utimbuf *times) {
 static SysRes<usize> utimes(char *filename, struct __kernel_old_timeval *utimes) {
     return syscall(__NR_utimes, filename, utimes);
 }
-static SysRes<usize> futimesat(FdI dfd, const char *filename, struct __kernel_old_timeval *utimes) {
+static SysRes<usize> futimesat(Fd dfd, const char *filename, struct __kernel_old_timeval *utimes) {
     return syscall(__NR_futimesat, dfd, filename, utimes);
 }
 static SysRes<usize> creat(const char *pathname, umode_t mode) {
@@ -1055,7 +1053,7 @@ select(int n, fd_set *inp, fd_set *outp, fd_set *exp, struct __kernel_old_timeva
 static SysRes<usize> poll(struct pollfd *ufds, unsigned int nfds, int timeout) {
     return syscall(__NR_poll, ufds, nfds, timeout);
 }
-static SysRes<usize> epoll_wait(FdI epfd, struct epoll_event *events, int maxevents, int timeout) {
+static SysRes<usize> epoll_wait(Fd epfd, struct epoll_event *events, int maxevents, int timeout) {
     return syscall(__NR_epoll_wait, epfd, events, maxevents, timeout);
 }
 static SysRes<pid_t> vfork() {
@@ -1071,7 +1069,7 @@ static SysRes<pid_t> fork() {
     return syscall(__NR_fork).unsafe_cast<pid_t>();
 }
 static SysRes<u8 *> mmap(
-    void *addr, unsigned long len, unsigned long prot, unsigned long flags, FdUL fd,
+    void *addr, unsigned long len, unsigned long prot, unsigned long flags, Fd fd,
     unsigned long pgoff
 ) {
     return syscall(__NR_mmap, addr, len, prot, flags, fd, pgoff).unsafe_cast<u8 *>();

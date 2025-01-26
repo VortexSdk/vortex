@@ -6,7 +6,7 @@
 template <typename T> struct FixedSlice;
 
 template <typename T> struct Slice {
-    PIN_STRUCT(Slice, len, 0_usize, ptr, reinterpret_cast<T *>(0))
+    VAL_STRUCT(Slice, len, 0_usize, ptr, reinterpret_cast<T *>(0))
 
     template <usize Y> Slice(T (&arr) [Y]) : len(Y), ptr(arr) {}
 
