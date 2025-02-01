@@ -210,6 +210,18 @@ template <typename T = u8> struct BasicString {
         return &self.data.ptr [n];
     }
 
+    [[nodiscard]] bool eql(this const BasicString<T> &self, const BasicString<T> &other) {
+        if (self.len != other.len) return false;
+
+        if (self.len >= PREFIX_COUNT) [[likely]] {
+            if (memcmp(self.prefix.data, self.prefix.data, sizeof(T) * PREFIX_COUNT)) return false;
+        }
+
+        const T *this_data  = (self.len <= STR_DATA_COUNT) ? self.data.buf.data : self.data.ptr;
+        const T *other_data = (other.len <= STR_DATA_COUNT) ? other.data.buf.data : other.data.ptr;
+        return !memcmp(this_data, other_data, sizeof(T) * self.len);
+    }
+
     Slice<T> mut_subslice(this BasicString<T> &self, usize start, usize sublen) {
         if (start >= self.len || start + sublen > self.len) [[unlikely]]
             return Slice<T>();

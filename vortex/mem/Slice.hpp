@@ -11,7 +11,7 @@ template <typename T> struct Slice {
     template <usize Y> Slice(T (&arr) [Y]) : len(Y), ptr(arr) {}
 
     operator Slice<const T>(this const Slice & self) {
-        return self;
+        return Slice<const T>::init(self.len, reinterpret_cast<const T *>(self.ptr));
     }
 
     operator FixedSlice<T>(this const Slice & self) {
@@ -23,7 +23,7 @@ template <typename T> struct Slice {
     }
 
     bool is_empty(this const Slice &self) {
-        return self.ptr == null;
+        return self.ptr == null || !self.len;
     }
 
     T *get_unchecked(this const Slice &self, usize i) {
@@ -41,7 +41,7 @@ template <typename T> struct Slice {
         return self.get(idx);
     }
 
-    bool operator==(this const Slice &self, Slice<const T> *const other) {
+    bool operator==(this const Slice &self, const Slice<const T> &other) {
         if (self.len != other->len) return false;
         for (usize i = 0; i < self.len; i++) {
             if (self.ptr [i] != other->ptr [i]) return false;
@@ -51,12 +51,89 @@ template <typename T> struct Slice {
     }
 };
 
+template <typename T> struct NullTermSlice {
+    Slice<T> slice;
+
+    NullTermSlice() : slice(Slice<T>()) {}
+    template <usize Y> NullTermSlice(T (&arr) [Y]) : slice(Slice<T>::init(Y, arr)) {}
+    NullTermSlice(const NullTermSlice &other) : slice(other.slice) {}
+    NullTermSlice &operator=(const NullTermSlice &other) {
+        if (this != &other) [[likely]] {
+            slice = other.slice;
+        }
+        return *this;
+    }
+    NullTermSlice(NullTermSlice &&other) noexcept : slice(exchange(other.slice, Slice<T>())) {}
+    NullTermSlice &operator=(NullTermSlice &&other) noexcept {
+        if (this != &other) [[likely]] {
+            slice = exchange(other.slice, Slice<T>());
+        }
+        return *this;
+    }
+
+    operator NullTermSlice<const T>(this const NullTermSlice & self) {
+        return NullTermSlice<const T>::init(
+            self.slice.len, reinterpret_cast<const T *>(self.slice.ptr)
+        );
+    }
+
+    static NullTermSlice<T> init(usize len_with_sentinel, T *ptr) {
+        return NullTermSlice<T>(Slice<T>::init(len_with_sentinel, ptr));
+    }
+
+    usize len_with_nullchar(this const NullTermSlice &self) {
+        return self.slice.len;
+    }
+
+    usize len(this const NullTermSlice &self) {
+        if (self.slice.len <= 1) [[unlikely]]
+            return 0;
+
+        return self.slice.len - 1;
+    }
+
+    Slice<T> as_slice_with_nullchar(this const NullTermSlice &self) {
+        return self.slice;
+    }
+
+    Slice<T> as_slice(this const NullTermSlice &self) {
+        if (self.slice.len <= 1) [[unlikely]]
+            return Slice<T>();
+
+        return Slice<T>::init(self.slice.len - 1, self.slice.ptr);
+    }
+
+    T *ptr(this NullTermSlice &self) {
+        return self.slice.ptr;
+    }
+
+    bool is_empty(this const NullTermSlice &self) {
+        return self.slice.is_empty();
+    }
+
+    T *get_unchecked(this const NullTermSlice &self, usize i) {
+        return self.slice.get_unchecked(i);
+    }
+
+    T *get(this const NullTermSlice &self, usize i) {
+        return self.slice.get(i);
+    }
+
+    T *operator[](this const NullTermSlice &self, usize idx) {
+        return self.slice.get(idx);
+    }
+
+    bool operator==(this const NullTermSlice &self, const Slice<const T> &other) {
+        return self.slice.operator==(other);
+    }
+};
+
 template <typename T> struct FixedSlice {
   private:
     usize len{0};
 
     Slice<T> as_slice(this const FixedSlice &self) {
-        return Slice<T>(self.len, self.ptr);
+        return Slice<T>::init(self.len, self.ptr);
     }
 
   public:
@@ -75,7 +152,7 @@ template <typename T> struct FixedSlice {
     }
 
     operator FixedSlice<const T>(this const FixedSlice & self) {
-        return self;
+        return FixedSlice<const T>::init(self.len, reinterpret_cast<const T *>(self.ptr));
     }
 
     static FixedSlice<T> init(usize len, T *ptr) {
@@ -111,15 +188,18 @@ template <typename T> struct SliceWithPos {
     }
 
     operator SliceWithPos<const T>(this const SliceWithPos & self) {
-        return self;
+        return SliceWithPos<const T>::init(
+            self.pos,
+            Slice<const T>::init(self.slice.len, reinterpret_cast<const T *>(self.slice.ptr))
+        );
     }
 
     static SliceWithPos<T> init(Slice<T> slice, usize pos = 0) {
-        return FixedSlice<T>(pos, slice);
+        return SliceWithPos<T>(pos, slice);
     }
 
     static SliceWithPos<T> init(usize len, T *ptr, usize pos = 0) {
-        return FixedSlice<T>(pos, Slice<T>(len, ptr));
+        return SliceWithPos<T>(pos, Slice<T>::init(len, ptr));
     }
 
     bool is_empty(this const SliceWithPos &self) {
@@ -131,20 +211,20 @@ template <typename T> struct SliceWithPos {
     }
 
     T *get(this const SliceWithPos &self, usize i) {
-        if (i > self.pos) return null;
+        if (i >= self.pos) return null;
 
         return self.get_unchecked(i);
     }
 
     Slice<T> get(this const SliceWithPos &self, usize from, usize to) {
-        if (from < 1 || to > self.pos || to < from) [[unlikely]]
+        if (from >= self.pos || to > self.pos || to <= from) [[unlikely]]
             return Slice<T>();
 
         return Slice<T>::init((to - from), &self.slice.ptr [from]);
     }
 
     T *put(this SliceWithPos &self, const T v) {
-        if (self.pos >= (self.slice.len - 1)) [[unlikely]]
+        if (self.pos >= self.slice.len) [[unlikely]]
             return null;
 
         T *ptr = &self.slice.ptr [self.pos];
@@ -171,7 +251,7 @@ template <typename T> struct SliceWithPos {
         if (new_pos >= (self.slice.len - 1)) [[unlikely]]
             return Slice<T>();
 
-        for (usize i = 0; self.pos < new_pos; i++)
+        for (usize i = 0; i < v->len; i++)
             *self.slice.get_unchecked(self.pos + i) = *v->get_unchecked(i);
 
         T *ptr   = self.slice.get_unchecked(self.pos);

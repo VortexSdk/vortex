@@ -1,14 +1,15 @@
 #pragma once
 
 #include "linux/syscall/wrapper.hpp"
-#include "strings.hpp"
-#include <asm/unistd_64.h>
+#include "writer.hpp"
 
-static void assert(bool r, const char *const m) {
+static void __assert(const char *file, int line, bool r, const char *m = null) {
     if (!r) {
-        write(1, m, strlen(m));
-        write(1, "\n", 1);
+        eprintln("Assertion failed in file `", file, "` at line ", line, ".");
+        if (m) eprintln(m);
 
         exit_group(1);
     }
 }
+
+#define assert(...) __assert(__FILE__, __LINE__, __VA_ARGS__)

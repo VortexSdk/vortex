@@ -41,19 +41,19 @@ template <typename... T> static SysRes<usize> syscall(usize n, T... args) {
     IF_NOT_ARM(usize ret)
     if constexpr (n_args == 0) {
         IF_ARM_OR(
-            __asm__ __volatile__("svc #0" : "=r"(x0) : "r"(x8) : "memory"),
+            __asm__ __volatile__("svc #0" : "=r"(x0) : "r"(x8) : "memory", "cc"),
             __asm__ __volatile__("syscall" : "=a"(ret) : "a"(n) : "rcx", "r11", "memory")
         )
     } else if constexpr (n_args == 1) {
         IF_ARM_OR(
-            __asm__ __volatile__("svc #0" : "=r"(x0) : "r"(x8), "r"(x0) : "memory"),
+            __asm__ __volatile__("svc #0" : "=r"(x0) : "r"(x8), "r"(x0) : "memory", "cc"),
             __asm__ __volatile__(
                 "syscall" : "=a"(ret) : "a"(n), "D"(args_array [0]) : "rcx", "r11", "memory"
             )
         )
     } else if constexpr (n_args == 2) {
         IF_ARM_OR(
-            __asm__ __volatile__("svc #0" : "=r"(x0) : "r"(x8), "r"(x0), "r"(x1) : "memory"),
+            __asm__ __volatile__("svc #0" : "=r"(x0) : "r"(x8), "r"(x0), "r"(x1) : "memory", "cc"),
             __asm__ __volatile__(
                 "syscall" : "=a"(ret) : "a"(n), "D"(args_array [0]), "S"(args_array [1]) : "rcx",
                 "r11", "memory"
@@ -62,7 +62,7 @@ template <typename... T> static SysRes<usize> syscall(usize n, T... args) {
     } else if constexpr (n_args == 3) {
         IF_ARM_OR(
             __asm__ __volatile__(
-                "svc #0" : "=r"(x0) : "r"(x8), "r"(x0), "r"(x1), "r"(x2) : "memory"
+                "svc #0" : "=r"(x0) : "r"(x8), "r"(x0), "r"(x1), "r"(x2) : "memory", "cc"
             ),
             __asm__ __volatile__(
                 "syscall" : "=a"(ret) : "a"(n), "D"(args_array [0]), "S"(args_array [1]),
@@ -72,7 +72,7 @@ template <typename... T> static SysRes<usize> syscall(usize n, T... args) {
     } else if constexpr (n_args == 4) {
         IF_ARM_OR(
             __asm__ __volatile__(
-                "svc #0" : "=r"(x0) : "r"(x8), "r"(x0), "r"(x1), "r"(x2), "r"(x3) : "memory"
+                "svc #0" : "=r"(x0) : "r"(x8), "r"(x0), "r"(x1), "r"(x2), "r"(x3) : "memory", "cc"
             ),
             __asm__ __volatile__(
                 "syscall" : "=a"(ret) : "a"(n), "D"(args_array [0]), "S"(args_array [1]),
@@ -83,7 +83,7 @@ template <typename... T> static SysRes<usize> syscall(usize n, T... args) {
         IF_ARM_OR(
             __asm__ __volatile__(
                 "svc #0" : "=r"(x0) : "r"(x8), "r"(x0), "r"(x1), "r"(x2), "r"(x3),
-                "r"(x4) : "memory"
+                "r"(x4) : "memory", "cc"
             ),
             __asm__ __volatile__(
                 "syscall" : "=a"(ret) : "a"(n), "D"(args_array [0]), "S"(args_array [1]),
@@ -94,7 +94,7 @@ template <typename... T> static SysRes<usize> syscall(usize n, T... args) {
         IF_ARM_OR(
             __asm__ __volatile__(
                 "svc #0" : "=r"(x0) : "r"(x8), "r"(x0), "r"(x1), "r"(x2), "r"(x3), "r"(x4),
-                "r"(x5) : "memory"
+                "r"(x5) : "memory", "cc"
             ),
             __asm__ __volatile__(
                 "syscall" : "=a"(ret) : "a"(n), "D"(args_array [0]), "S"(args_array [1]),

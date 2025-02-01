@@ -21,7 +21,7 @@ DIAG_IGNORE_CLANG_PUSH("-Wold-style-cast", "-Wcast-align")
         auto sqe = VORTEX_NS(move(expr));                                                          \
         if (sqe == reinterpret_cast<decltype(sqe)>(0)) [[unlikely]]                                \
             return VORTEX_NS(ErrSysRes(SysResKind::NOMEM, __FILE__, __LINE__));                    \
-        sqe;                                                                                       \
+        VORTEX_NS(move(sqe));                                                                      \
     })
 #define IO_TRY_ADD(expr) __IO_TRY_ADD(expr, UNIQUE_NAME(sqe))
 #define __IO_TRY_SUBMIT(r, expr, sqe, submitted_r)                                                 \
@@ -54,7 +54,7 @@ DIAG_IGNORE_CLANG_PUSH("-Wold-style-cast", "-Wcast-align")
         if (submitted.is_err()) [[unlikely]]                                                       \
             return VORTEX_NS(ErrSysRes(submitted.kind, __FILE__, __LINE__));                       \
                                                                                                    \
-        submitted.unwrap();                                                                        \
+        VORTEX_NS(move(submitted.unwrap()));                                                       \
     })
 #define IO_TRY_ADD_AND_GET(expr)                                                                   \
     __IO_TRY_ADD_AND_GET_INNER(                                                                    \
@@ -62,19 +62,40 @@ DIAG_IGNORE_CLANG_PUSH("-Wold-style-cast", "-Wcast-align")
         UNIQUE_NAME(submitted)                                                                     \
     )
 
-struct CqeRes;
-using IoUringRes = SysRes<CqeRes>;
-
 struct CqeRes {
-    VAL_STRUCT(CqeRes, user_data, 0_u64, res, 0_u32, flags, 0_u32)
+    VAL_STRUCT(CqeRes, user_data, 0_u64, res, 0_i32, flags, 0_u32)
 
-    static IoUringRes from_cqe(io_uring_cqe cqe) {
-        SysRes<usize> r = SysRes<usize>::from_sys(static_cast<usize>(cqe.res));
-        return IoUringRes::from_kind(
-            CqeRes(cqe.user_data, static_cast<u32>(cqe.res), cqe.flags), r.kind
-        );
+    static CqeRes from_cqe(io_uring_cqe cqe) {
+        return {cqe.user_data, cqe.res, cqe.flags};
+    }
+
+    SysRes<CqeRes> as_sysres(this CqeRes& self) {
+        TRY(SysRes<usize>::from_sys(static_cast<usize>(self.res)));
+        return self;
+    }
+    SysResKind err_kind(this CqeRes& self) {
+        SysRes<CqeRes> r = self.as_sysres();
+        return r.kind;
+    }
+    bool is_err(this CqeRes& self) {
+        SysRes<CqeRes> r = self.as_sysres();
+        return r.is_err();
+    }
+    bool is_ok(this CqeRes& self) {
+        SysRes<CqeRes> r = self.as_sysres();
+        return r.is_ok();
     }
 };
+
+#define __IR_TRY(expr, submitted)                                                                  \
+    ({                                                                                             \
+        auto submitted = VORTEX_NS(move(expr));                                                    \
+        if (submitted.is_err()) [[unlikely]] {                                                     \
+            return VORTEX_NS(ErrSysRes(submitted.err_kind(), __FILE__, __LINE__));                 \
+        }                                                                                          \
+        VORTEX_NS(move(submitted));                                                                \
+    })
+#define IR_TRY(expr) __IR_TRY(expr, UNIQUE_NAME(submitted))
 
 struct SubmissionQueue {
     PIN_STRUCT(
@@ -293,24 +314,24 @@ struct IoUring {
         return self.submit_and_wait(0);
     }
 
-    usize copy_cqes_ready(this IoUring& self, Slice<IoUringRes>* cqes) {
+    usize copy_cqes_ready(this IoUring& self, const Slice<CqeRes>& cqes) {
         u32 ready = self.cq_ready();
-        u32 count = min(static_cast<u32>(cqes->len), ready);
+        u32 count = min(static_cast<u32>(cqes.len), ready);
         u32 head  = *self.cq.head & self.cq.mask;
 
         // Before wrapping.
         u32 n     = min(static_cast<u32>(self.cq.cqes.len) - head, count);
         for (usize i = 0; i < n; i++) {
             io_uring_cqe e = self.cq.cqes.ptr [head + i];
-            IoUringRes r   = CqeRes::from_cqe(e);
-            cqes->ptr [i]  = move(r);
+            CqeRes r       = CqeRes::from_cqe(e);
+            cqes.ptr [i]   = move(r);
         }
 
         if (count > n) {
             // Wrap self.cq.cqes.
             u32 w = count - n;
             for (usize i = 0; i < w; i++)
-                cqes->ptr [n + i] = move(CqeRes::from_cqe(self.cq.cqes.ptr [i]));
+                cqes.ptr [n + i] = move(CqeRes::from_cqe(self.cq.cqes.ptr [i]));
         }
 
         self.cq_advance(count);
@@ -318,7 +339,7 @@ struct IoUring {
     }
     template <typename T>
         requires is_integral_v<T>
-    SysRes<usize> copy_cqes(this IoUring& self, Slice<IoUringRes>* cqes, T wait_nr) {
+    SysRes<usize> copy_cqes(this IoUring& self, const Slice<CqeRes>& cqes, T wait_nr) {
         usize count = self.copy_cqes_ready(cqes);
         if (count > 0) return count;
 
@@ -331,11 +352,10 @@ struct IoUring {
 
         return 0;
     }
-    SysRes<IoUringRes> copy_cqe(this IoUring& self) {
-        IoUringRes cqes [1];
-        Slice<IoUringRes> cqes_slice = Slice<IoUringRes>(1, cqes);
+    SysRes<CqeRes> copy_cqe(this IoUring& self) {
+        CqeRes cqes [1];
         while (true) {
-            auto count = TRY(self.copy_cqes(&cqes_slice, 1));
+            auto count = TRY(self.copy_cqes(Slice<CqeRes>(1, cqes), 1));
 
             if (count > 0) return move(cqes [0]);
         }
@@ -734,11 +754,11 @@ struct IoUring {
         this IoUring& self, u64 user_data, int dfd, const char* path, int flags, unsigned mask,
         statx_t* statxbuf
     ) {
-        io_uring_sqe* sqe = self.get_sqe(IORING_OP_STATX, user_data, dfd);
+        io_uring_sqe* sqe = self.get_sqe(IORING_OP_STATX, user_data, dfd, false);
         if (sqe == null) return sqe;
-        sqe->addr        = (u64)path;
         sqe->len         = mask;
-        sqe->addr2       = (u64)statxbuf;
+        sqe->addr        = (u64)path;
+        sqe->off         = (u64)statxbuf;
         sqe->statx_flags = (u32)flags;
         return sqe;
     }
@@ -1169,7 +1189,7 @@ struct IoUring {
     }
 
     io_uring_sqe* close(this IoUring& self, u64 user_data, Fd fd) {
-        return self.get_sqe(IORING_OP_CLOSE, user_data, fd);
+        return self.get_sqe(IORING_OP_CLOSE, user_data, fd, false);
     }
 
     io_uring_sqe* close_direct(this IoUring& self, u64 user_data, u32 file_index) {
@@ -1183,6 +1203,10 @@ struct IoUring {
         sqe->flags |= IOSQE_IO_LINK;
         return sqe;
     }
+    io_uring_sqe* hard_link(this IoUring&, io_uring_sqe* sqe) {
+        sqe->flags |= IOSQE_IO_HARDLINK;
+        return sqe;
+    }
     io_uring_sqe* skip_success(this IoUring&, io_uring_sqe* sqe) {
         sqe->flags |= IOSQE_CQE_SKIP_SUCCESS;
         return sqe;
@@ -1192,7 +1216,7 @@ struct IoUring {
 struct IoUringBufRing {
     PIN_STRUCT(
         IoUringBufRing, entries, 0_u32, bgid, 0_u16, br, reinterpret_cast<io_uring_buf_ring*>(0),
-        buffer_base, reinterpret_cast<u8*>(0), size_shift, 0_usize, inc_pos, 0_usize, inc_bid,
+        buffer_base, reinterpret_cast<char*>(0), size_shift, 0_usize, inc_pos, 0_usize, inc_bid,
         32769_u16
     )
 
@@ -1212,7 +1236,7 @@ struct IoUringBufRing {
         self.size_shift  = size_shift;
         self.inc_pos     = 0;
         self.inc_bid     = 0;
-        self.buffer_base = reinterpret_cast<u8*>(self.br + sizeof(io_uring_buf) * self.entries);
+        self.buffer_base = reinterpret_cast<char*>(self.br + sizeof(io_uring_buf) * self.entries);
 
         for (u16 i = 0; i < self.entries; i++) self.add_buf(self.get_buf(i), bucket_size, i);
         self.advance_buffers(static_cast<u16>(self.entries));
@@ -1223,7 +1247,7 @@ struct IoUringBufRing {
     void advance_buffers(this IoUringBufRing& self, u16 count) {
         __atomic_store_n(&self.br->tail, self.br->tail + count, __ATOMIC_RELEASE);
     }
-    void add_buf(this IoUringBufRing& self, u8* addr, u32 len, u16 bid, usize off) {
+    void add_buf(this IoUringBufRing& self, char* addr, u32 len, u16 bid, usize off) {
         self.br->bufs [(self.br->tail + off) & (self.entries - 1)] = {
             .addr = reinterpret_cast<u64>(addr),
             .len  = len,
@@ -1231,7 +1255,7 @@ struct IoUringBufRing {
             .resv = 0,
         };
     }
-    void add_buf(this IoUringBufRing& self, u8* addr, u32 len, u16 bid) {
+    void add_buf(this IoUringBufRing& self, char* addr, u32 len, u16 bid) {
         return self.add_buf(addr, len, bid, bid);
     }
 
@@ -1264,11 +1288,13 @@ struct IoUringBufRing {
         return cqe.flags & IORING_CQE_F_BUF_MORE;
     }
 
-    u8* get_buf(this IoUringBufRing& self, u16 idx) {
-        return reinterpret_cast<u8*>(self.buffer_base + (idx << self.size_shift));
+    char* get_buf(this IoUringBufRing& self, u16 idx) {
+        return reinterpret_cast<char*>(self.buffer_base + (idx << self.size_shift));
     }
-    Slice<u8> get_buf(this IoUringBufRing& self, const CqeRes& cqe) {
-        return Slice<u8>::init(cqe.res, self.get_buf(self.index(cqe)) + self.inc_pos);
+    Slice<char> get_buf(this IoUringBufRing& self, const CqeRes& cqe) {
+        return Slice<char>::init(
+            static_cast<usize>(cqe.res), self.get_buf(self.index(cqe)) + self.inc_pos
+        );
     }
 
     void recycle_buf(this IoUringBufRing& self, const CqeRes& cqe) {
@@ -1282,7 +1308,7 @@ struct IoUringBufRing {
 
         if (self.inc_bid == NO_BUF) self.inc_bid = bid_idx;
 
-        self.inc_pos += cqe.res;
+        self.inc_pos += static_cast<usize>(cqe.res);
     }
 
     SysRes<None> deinit(this IoUringBufRing& self, IoUring* r) {

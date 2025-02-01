@@ -17,7 +17,7 @@ template <typename T> struct Vec {
         if (alloc_res.is_empty()) return SysResKind::NOMEM;
         v.ptr = alloc_res.ptr;
 
-        return move(v);
+        return v;
     }
 
     template <AllocatorStrategy U>
@@ -30,7 +30,7 @@ template <typename T> struct Vec {
         );
         v.len = slice->len;
 
-        return move(v);
+        return v;
     }
 
     template <AllocatorStrategy U> void deinit(this Vec<T> &self, Allocator<U> *a) {
@@ -57,7 +57,7 @@ template <typename T> struct Vec {
         return false;
     }
 
-    template <AllocatorStrategy U> bool push(this Vec<T> &self, Allocator<U> *a, T val) {
+    template <AllocatorStrategy U> bool push(this Vec<T> &self, Allocator<U> *a, T &&val) {
         if (self.len >= self.cap)
             if (self.grow(a, self.cap * 2)) return true;
 
@@ -91,6 +91,22 @@ template <typename T> struct Vec {
             return null;
 
         return &self.ptr [n];
+    }
+
+    T *last(this const Vec<T> &self) {
+        if (self.len == 0) [[unlikely]]
+            return null;
+
+        return self.nth(self.len - 1);
+    }
+
+    SysRes<T> pop(this Vec<T> &self) {
+        T *last_ptr = self.last();
+        if (!last_ptr) return SysResKind::NODATA;
+
+        T last = *last_ptr;
+        self.len -= 1;
+        return last;
     }
 
     Slice<T> mut_subslice(this Vec<T> &self, usize start, usize sublen) {

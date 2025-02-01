@@ -7,9 +7,10 @@
 #include "metap/structs.hpp"
 #include "numbers.hpp"
 #include "rapidhash.hpp"
+#include "vortex/string.hpp"
 
-template <typename T> using MapEqlFn = bool (*)(const T, const T);
-template <typename T> bool default_map_eql_fn(const T a, const T b) {
+template <typename T> using MapEqlFn = bool (*)(const T &, const T &);
+template <typename T> bool default_map_eql_fn(const T &a, const T &b) {
     const auto *a_ptr = reinterpret_cast<const u8 *const>(&a);
     const auto *b_ptr = reinterpret_cast<const u8 *const>(&b);
     for (usize i = 0; i < sizeof(T); i++)
@@ -18,8 +19,8 @@ template <typename T> bool default_map_eql_fn(const T a, const T b) {
     return true;
 }
 
-template <typename T> using MapHashFn = u64 (*)(const T);
-template <typename T> static u64 default_map_hash_fn(const T s) {
+template <typename T> using MapHashFn = u64 (*)(const T &);
+template <typename T> static u64 default_map_hash_fn(const T &s) {
     return rapidhash_withSeed(&s, sizeof(T), 0);
 }
 
@@ -94,7 +95,6 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct N
         return {self.entries.len, false, false}; // Table is full
     }
 
-  public:
     template <AllocatorStrategy U>
     static SysRes<CURRENT_MAP> init_cap_unchecked(Allocator<U> *a, usize capacity) {
         CURRENT_MAP m;
@@ -114,7 +114,7 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct N
     }
 
     template <AllocatorStrategy U> void deinit(this CURRENT_MAP &self, Allocator<U> *a) {
-        a->free(move(self.entries));
+        a->free(self.entries);
     }
 
     template <AllocatorStrategy U>
@@ -130,9 +130,9 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct N
             }
         }
 
-        a->free(move(self.entries));
+        a->free(self.entries);
         self.count   = new_map.count;
-        self.entries = move(new_map.entries);
+        self.entries = new_map.entries;
 
         return false;
     }
@@ -201,7 +201,7 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct M
         m.key_value_len             = capacity;
         SysRes<CURRENT_NCM> ncm_res = CURRENT_NCM::init_cap_unchecked(a, capacity);
         if (ncm_res.is_err()) return ncm_res.template return_err<CURRENT_MAP>();
-        m.ncm                   = move(ncm_res.unwrap());
+        m.ncm                   = ncm_res.unwrap();
 
         const Slice<T> keys_res = a->template alloc<T>(capacity);
         if (keys_res.is_empty()) return SysResKind::NOMEM;
@@ -211,7 +211,7 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct M
         if (values_res.is_empty()) return SysResKind::NOMEM;
         m.values = values_res.ptr;
 
-        return move(m);
+        return m;
     }
 
     template <AllocatorStrategy U> void deinit(this CURRENT_MAP &self, Allocator<U> *a) {
@@ -225,7 +225,7 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct M
     }
 
     template <AllocatorStrategy U>
-    MapInsertRes insert(this CURRENT_MAP &self, Allocator<U> *a, const T key, const Y value) {
+    MapInsertRes insert(this CURRENT_MAP &self, Allocator<U> *a, const T &key, const Y &value) {
         if (self.ncm.rehash_if_needed(a)) [[unlikely]] {
             Slice<T> keys_alloc_res = a->resize_or_alloc(
                 Slice<T>::init(self.key_value_len, self.keys), self.ncm.entries.len
@@ -239,7 +239,7 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct M
             );
             if (values_alloc_res.is_empty()) {
                 self.ncm.remove(key);
-                a->free(move(keys_alloc_res));
+                a->free(keys_alloc_res);
                 return MapInsertRes::OutOfMemory;
             }
 
@@ -256,14 +256,14 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct M
         if (!result.found) {
             T *new_key   = &self.keys [self.ncm.count];
             Y *new_value = &self.values [self.ncm.count];
-            *new_key     = move(key);
-            *new_value   = move(value);
+            *new_key     = key;
+            *new_value   = value;
             *entry       = MapEntry<T, Y>{
                       .key = new_key, .value = new_value, .status = MapEntryStatus::Filled
             };
             self.ncm.count++;
         } else {
-            *entry->value = move(value);
+            *entry->value = value;
         }
 
         return MapInsertRes::Success;
@@ -273,3 +273,17 @@ template <typename T, typename Y, MapConfig<T> CONFIG = MapConfig<T>{}> struct M
         return self.ncm.remove(key);
     }
 };
+
+static bool string_map_eql_fn(const String &s1, const String &s2) {
+    return s1.eql(s2);
+}
+static u64 string_map_hash_fn(const String &s) {
+    Slice<const u8> slice = s.as_slice();
+    return rapidhash_withSeed(reinterpret_cast<const void *>(slice.ptr), slice.len, 0);
+}
+using StringMap =
+    Map<String, String,
+        MapConfig<String>{
+            .eql_fn  = string_map_eql_fn,
+            .hash_fn = string_map_hash_fn,
+        }>;

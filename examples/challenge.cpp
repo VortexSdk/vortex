@@ -12,8 +12,8 @@ static SysRes<None> main_w() {
     Allocator<Arena> pa = Allocator<Arena>::init(p1.len, p1.ptr);
     Allocator<Arena> ta = Allocator<Arena>::init(p2.len, p2.ptr);
 
-    FsMap fm            = TRY(FsMap::init(&pa, &r, 0, 0, 0, "vortex"));
-    TRY(fm.load(&pa, &ta));
+    FsMap fm            = TRY(FsMap::init(&pa, "vortex"));
+    TRY(fm.load_dir(&r, &pa, &ta));
 
     TRY(p1.deinit());
     TRY(p2.deinit());

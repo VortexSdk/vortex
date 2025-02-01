@@ -49,7 +49,9 @@ struct Arena {
         a->pos = 0;
     }
 
-    void free(AllocatorState *, void *, usize, usize) {}
+    bool free(AllocatorState *, void *, usize, usize) {
+        return false;
+    }
 };
 
 // NOLINTEND

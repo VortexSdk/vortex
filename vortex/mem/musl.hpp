@@ -12,6 +12,11 @@ DIAG_IGNORE_CLANG_PUSH(
 )
 DIAG_IGNORE_GCC_PUSH("-Wattributes")
 
+#ifdef __GNUC__
+typedef __attribute__((__may_alias__)) usize WT;
+#define WS (sizeof(WT))
+#endif
+
 // The UB sanitizer flags the `k = -(usize)s & 3;` line as a false positive. To prevent this, we
 // need to disable these two specific sanitization checks.
 __attribute__((no_sanitize("implicit-integer-sign-change", "unsigned-integer-overflow"))
@@ -248,6 +253,36 @@ static int strncmp(const char *_l, const char *_r, usize n) {
     if (!n--) return 0;
     for (; *l && *r && n && *l == *r; l++, r++, n--);
     return *l - *r;
+}
+
+static void *memmove(void *dest, const void *src, usize n) {
+    char *d       = (char *)dest;
+    const char *s = (const char *)src;
+
+    if (d == s) return d;
+    if ((usize)s - (usize)d - n <= -2 * n) return memcpy(d, s, n);
+
+    if (d < s) {
+        if ((usize)s % WS == (usize)d % WS) {
+            while ((usize)d % WS) {
+                if (!n--) return dest;
+                *d++ = *s++;
+            }
+            for (; n >= WS; n -= WS, d += WS, s += WS) *(WT *)d = *(WT *)s;
+        }
+        for (; n; n--) *d++ = *s++;
+    } else {
+        if ((usize)s % WS == (usize)d % WS) {
+            while ((usize)(d + n) % WS) {
+                if (!n--) return dest;
+                d [n] = s [n];
+            }
+            while (n >= WS) static_cast<void>(n -= WS), *(WT *)(d + n) = *(WT *)(s + n);
+        }
+        while (n) static_cast<void>(n--), d [n] = s [n];
+    }
+
+    return dest;
 }
 
 // NOLINTEND
